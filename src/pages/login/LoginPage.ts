@@ -1,4 +1,5 @@
 import { Page, Locator } from '@playwright/test';
+import { TestData } from '../../utils/TestData';
 
 /**
  * Page Object Model for the Login Page
@@ -76,7 +77,7 @@ export class LoginPage {
    * Navigate to the login page
    */
   async goto(): Promise<void> {
-    await this.page.goto('/onboarding/Login');
+    await this.page.goto(`${TestData.urls.base}${TestData.urls.login}`);
     try {
       await this.page.waitForLoadState('networkidle', { timeout: 10000 });
     } catch {

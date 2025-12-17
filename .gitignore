@@ -7,3 +7,6 @@ playwright/.cache/
 *.log
 .DS_Store
 
+# Exclude Atest folder from git
+Atest/
+

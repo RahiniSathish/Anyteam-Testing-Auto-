@@ -1,5 +1,5 @@
 import { Page } from '@playwright/test';
-import { AnyteamCalendarPage } from '../../pages/calendar/AnyteamCalendarPage';
+import { AnyteamCalendarPage } from '../../pages/calendar/anyteamCalendarPage';
 
 /**
  * Actions for Anyteam Calendar interactions

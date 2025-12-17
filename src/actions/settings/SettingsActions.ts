@@ -1,5 +1,5 @@
 import { Page } from '@playwright/test';
-import { SettingsPage } from '../../pages/settings/SettingsPage';
+import { SettingsPage } from '../../pages/settings/settingsPage';
 
 /**
  * Actions for Settings Page interactions

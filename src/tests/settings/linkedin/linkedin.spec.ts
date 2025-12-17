@@ -49,6 +49,29 @@ test.describe('LinkedIn Page', () => {
     console.log('LinkedIn content displayed:', isContentDisplayed);
   });
 
+  test('should verify Google Workspace Account and LinkedIn Account headings are present', async () => {
+    // Navigate to LinkedIn account page
+    await linkedInActions.clickLinkedInTab();
+    
+    // Wait for LinkedIn tab to be active
+    await linkedInActions.verifyLinkedInTabActive();
+    
+    // Verify both account headings are visible
+    const headingsVisibility = await linkedInActions.verifyAccountHeadingsVisible();
+    
+    // Log visibility status for each heading
+    console.log('Account Headings Visibility Status:');
+    console.log('  - Google Workspace Account:', headingsVisibility.googleWorkspaceAccount ? '✓ Visible' : '✗ Not visible');
+    console.log('  - LinkedIn Account:', headingsVisibility.linkedInAccount ? '✓ Visible' : '✗ Not visible');
+    
+    // Assert that both headings are visible
+    expect(headingsVisibility.googleWorkspaceAccount).toBe(true);
+    expect(headingsVisibility.linkedInAccount).toBe(true);
+    expect(headingsVisibility.bothVisible).toBe(true);
+    
+    console.log('✓ Both account headings are present on LinkedIn account page');
+  });
+
   test('should edit LinkedIn information and verify value', async ({ page }) => {
     await linkedInActions.clickLinkedInTab();
     
