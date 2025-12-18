@@ -1,5 +1,5 @@
 import { Page } from '@playwright/test';
-import { GoogleCalendarPage } from '../../pages/calendar/GoogleCalendarPage';
+import { GoogleCalendarPage } from '../../pages/calendar/googleCalendarPage';
 
 /**
  * Actions for Google Calendar interactions

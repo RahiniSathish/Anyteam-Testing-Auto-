@@ -1,5 +1,5 @@
 import { Page } from '@playwright/test';
-import { ProfileInfoPage } from '../../../pages/settings/profile/ProfileInfoPage';
+import { ProfileInfoPage } from '../../../pages/settings/profile/profileInfoPage';
 
 /**
  * Actions for Profile Info Page interactions
@@ -107,6 +107,101 @@ export class ProfileInfoActions {
     
     // Wait for save to complete
     await this.profileInfoPage.page.waitForTimeout(2000);
+  }
+
+  /**
+   * Verify all profile fields are visible
+   * Returns an object with visibility status for each field
+   */
+  async verifyAllFieldsVisible(): Promise<{
+    name: boolean;
+    email: boolean;
+    linkedIn: boolean;
+    phone: boolean;
+    about: boolean;
+    allVisible: boolean;
+  }> {
+    return await this.profileInfoPage.verifyAllFieldsVisible();
+  }
+
+  /**
+   * Check if all required fields are visible
+   */
+  async areAllRequiredFieldsVisible(): Promise<boolean> {
+    return await this.profileInfoPage.areAllRequiredFieldsVisible();
+  }
+
+  /**
+   * Verify pencil button (edit icon) is displayed on profile page
+   */
+  async verifyPencilButtonVisible(): Promise<boolean> {
+    return await this.profileInfoPage.isPencilButtonVisible();
+  }
+
+  /**
+   * Get count of visible pencil buttons
+   */
+  async getPencilButtonCount(): Promise<number> {
+    return await this.profileInfoPage.getPencilButtonCount();
+  }
+
+  /**
+   * Verify all profile page components are visible
+   * Checks for all components: profile picture, fields, edit icons, tabs, buttons, etc.
+   */
+  async verifyAllComponentsVisible(): Promise<{
+    profilePicture: boolean;
+    nameHeading: boolean;
+    nameEditIcon: boolean;
+    emailHeading: boolean;
+    aboutYourselfHeading: boolean;
+    aboutYourselfEditIcon: boolean;
+    tabsContainer: boolean;
+    profileInfoTab: boolean;
+    linkedAccountsTab: boolean;
+    notificationsTab: boolean;
+    logoutButton: boolean;
+    deleteAccountButton: boolean;
+    allComponentsVisible: boolean;
+  }> {
+    return await this.profileInfoPage.verifyAllComponentsVisible();
+  }
+
+  /**
+   * Click on profile picture to trigger file input
+   */
+  async clickProfilePicture(): Promise<void> {
+    await this.profileInfoPage.clickProfilePicture();
+  }
+
+  /**
+   * Verify profile picture file input accepts only jpeg, jpg, png images (not all images)
+   */
+  async verifyProfilePictureFileInputAcceptsImages(): Promise<{
+    fileInputExists: boolean;
+    acceptAttribute: string | null;
+    acceptsJpeg: boolean;
+    acceptsPng: boolean;
+    acceptsJpg: boolean;
+    acceptsOnlyJpegJpgPng: boolean;
+  }> {
+    return await this.profileInfoPage.verifyProfilePictureFileInputAcceptsImages();
+  }
+
+  /**
+   * Upload/change profile picture by selecting a file from local folders
+   * @param filePath - Path to the image file (jpeg, jpg, or png) to upload
+   *                   Example: '/path/to/image.jpg' or './test-images/profile.png'
+   */
+  async uploadProfilePicture(filePath: string): Promise<void> {
+    // Click profile picture to trigger file input (opens file picker)
+    await this.profileInfoPage.clickProfilePicture();
+    
+    // Wait a moment for file picker to be ready
+    await this.profileInfoPage.page.waitForTimeout(1000);
+    
+    // Upload the file
+    await this.profileInfoPage.uploadProfilePicture(filePath);
   }
 }
 

@@ -1,5 +1,5 @@
 import { Page } from '@playwright/test';
-import { LinkedInPage } from '../../../pages/settings/linkedin/LinkedInPage';
+import { LinkedInPage } from '../../../pages/settings/linkedin/linkedInPage';
 
 /**
  * Actions for LinkedIn Page interactions
@@ -101,6 +101,18 @@ export class LinkedInActions {
    */
   async verifyLinkedInContentDisplayed(): Promise<boolean> {
     return await this.linkedInPage.isContentDisplayed();
+  }
+
+  /**
+   * Verify both account headings are visible
+   * Checks for "Google Workspace Account" and "LinkedIn Account" headings
+   */
+  async verifyAccountHeadingsVisible(): Promise<{
+    googleWorkspaceAccount: boolean;
+    linkedInAccount: boolean;
+    bothVisible: boolean;
+  }> {
+    return await this.linkedInPage.verifyAccountHeadingsVisible();
   }
 }
 

@@ -3,13 +3,14 @@
  */
 
 // Pages
-export { LoginPage } from './pages/login/LoginPage';
-export { GoogleOAuthPage } from './pages/login/GoogleOAuthPage';
-export { SettingsPage } from './pages/settings/SettingsPage';
-export { ProfileInfoPage } from './pages/settings/profile/ProfileInfoPage';
-export { LinkedInPage } from './pages/settings/linkedin/LinkedInPage';
-export { GoogleCalendarPage } from './pages/calendar/GoogleCalendarPage';
-export { AnyteamCalendarPage } from './pages/calendar/AnyteamCalendarPage';
+export { LoginPage } from './pages/login/loginPage';
+export { GoogleOAuthPage } from './pages/login/googleOAuthPage';
+export { SettingsPage } from './pages/settings/settingsPage';
+export { ProfileInfoPage } from './pages/settings/profile/profileInfoPage';
+export { LinkedInPage } from './pages/settings/linkedin/linkedInPage';
+export { GoogleCalendarPage } from './pages/calendar/googleCalendarPage';
+export { AnyteamCalendarPage } from './pages/calendar/anyteamCalendarPage';
+export { NotificationsPage } from './pages/settings/notifications/notificationsPage';
 
 // Actions
 export { LoginActions } from './actions/login/LoginActions';
@@ -19,6 +20,7 @@ export { ProfileInfoActions } from './actions/settings/profile/ProfileInfoAction
 export { LinkedInActions } from './actions/settings/linkedin/LinkedInActions';
 export { GoogleCalendarActions } from './actions/calendar/GoogleCalendarActions';
 export { AnyteamCalendarActions } from './actions/calendar/AnyteamCalendarActions';
+export { NotificationsActions } from './actions/settings/notifications/NotificationsActions';
 
 // Types
 export * from './types/LoginTypes';

@@ -1,5 +1,5 @@
 import { Page } from '@playwright/test';
-import { GoogleOAuthPage } from '../../pages/login/GoogleOAuthPage';
+import { GoogleOAuthPage } from '../../pages/login/googleOAuthPage';
 
 /**
  * Actions for Google OAuth Flow interactions
@@ -38,9 +38,18 @@ export class GoogleOAuthActions {
    */
   async enterPassword(password: string): Promise<void> {
     await this.googleOAuthPage.waitForPasswordInputPage();
+
+    // Click the password field first to focus it
+    await this.googleOAuthPage.passwordInput.click();
+    await this.googleOAuthPage.page.waitForTimeout(500);
+
+    // Clear any existing value
     await this.googleOAuthPage.passwordInput.clear();
-    await this.googleOAuthPage.passwordInput.fill(password);
-    await this.googleOAuthPage.page.waitForTimeout(200);
+    await this.googleOAuthPage.page.waitForTimeout(300);
+
+    // Type the password character by character for better reliability
+    await this.googleOAuthPage.passwordInput.pressSequentially(password, { delay: 100 });
+    await this.googleOAuthPage.page.waitForTimeout(500);
   }
 
   /**
@@ -69,8 +78,8 @@ export class GoogleOAuthActions {
    * Click Continue button on consent page ("You're signing back in to anyteam.com")
    */
   async clickContinueOnConsentPage(): Promise<void> {
-    await this.googleOAuthPage.waitForConsentPage();
-    await this.googleOAuthPage.continueButton.waitFor({ state: 'visible', timeout: 10000 });
+    // Wait for Continue button directly, don't require specific heading text
+    await this.googleOAuthPage.continueButton.waitFor({ state: 'visible', timeout: 15000 });
     await this.googleOAuthPage.continueButton.scrollIntoViewIfNeeded().catch(() => {});
     await this.googleOAuthPage.continueButton.click({ force: true });
     await this.googleOAuthPage.page.waitForTimeout(2000);
@@ -80,10 +89,10 @@ export class GoogleOAuthActions {
    * Click Allow button on permissions page ("anyteam.com wants to access your Google Account")
    */
   async clickAllowOnPermissionsPage(): Promise<void> {
-    await this.googleOAuthPage.waitForPermissionsPage();
-    await this.googleOAuthPage.allowButton.waitFor({ state: 'visible', timeout: 10000 });
+    // Wait for Allow button directly, don't require specific heading text
+    await this.googleOAuthPage.allowButton.waitFor({ state: 'visible', timeout: 15000 });
     await this.googleOAuthPage.allowButton.scrollIntoViewIfNeeded().catch(() => {});
-    
+
     // Try normal click first, fallback to force click
     try {
       await this.googleOAuthPage.allowButton.click({ timeout: 5000 });

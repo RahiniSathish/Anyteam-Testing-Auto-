@@ -1,5 +1,5 @@
 import { Page, expect } from '@playwright/test';
-import { LoginPage } from '../../pages/login/LoginPage';
+import { LoginPage } from '../../pages/login/loginPage';
 
 /**
  * Actions for Login Page interactions

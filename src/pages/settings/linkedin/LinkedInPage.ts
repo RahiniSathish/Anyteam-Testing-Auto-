@@ -16,6 +16,10 @@ export class LinkedInPage {
   readonly linkedInField: Locator; // Input field for LinkedIn URL or information
   readonly saveButton: Locator; // Save button for LinkedIn
 
+  // Account headings
+  readonly googleWorkspaceAccountHeading: Locator; // <h3 class="text-sm font-medium text-gray-900">Google Workspace Account</h3>
+  readonly linkedInAccountHeading: Locator; // <h3 class="text-sm font-medium text-black">LinkedIn Account</h3>
+
   constructor(page: Page) {
     this.page = page;
 
@@ -34,6 +38,13 @@ export class LinkedInPage {
 
     // Save button - exact match: <button class="text-sm flex items-center underline underline-offset-2">Save</button>
     this.saveButton = page.locator('button.text-sm.flex.items-center.underline.underline-offset-2:has-text("Save")').first();
+
+    // Account headings
+    // Google Workspace Account heading: <h3 class="text-sm font-medium text-gray-900">Google Workspace Account</h3>
+    this.googleWorkspaceAccountHeading = page.locator('h3.text-sm.font-medium.text-gray-900:has-text("Google Workspace Account")').first();
+    
+    // LinkedIn Account heading: <h3 class="text-sm font-medium text-black">LinkedIn Account</h3>
+    this.linkedInAccountHeading = page.locator('h3.text-sm.font-medium.text-black:has-text("LinkedIn Account")').first();
   }
 
   /**
@@ -71,6 +82,41 @@ export class LinkedInPage {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Verify both account headings are visible
+   * Checks for "Google Workspace Account" and "LinkedIn Account" headings
+   */
+  async verifyAccountHeadingsVisible(): Promise<{
+    googleWorkspaceAccount: boolean;
+    linkedInAccount: boolean;
+    bothVisible: boolean;
+  }> {
+    const results = {
+      googleWorkspaceAccount: false,
+      linkedInAccount: false,
+      bothVisible: false,
+    };
+
+    // Check Google Workspace Account heading
+    try {
+      results.googleWorkspaceAccount = await this.googleWorkspaceAccountHeading.isVisible({ timeout: 5000 }).catch(() => false);
+    } catch {
+      results.googleWorkspaceAccount = false;
+    }
+
+    // Check LinkedIn Account heading
+    try {
+      results.linkedInAccount = await this.linkedInAccountHeading.isVisible({ timeout: 5000 }).catch(() => false);
+    } catch {
+      results.linkedInAccount = false;
+    }
+
+    // Both headings must be visible
+    results.bothVisible = results.googleWorkspaceAccount && results.linkedInAccount;
+
+    return results;
   }
 }
 

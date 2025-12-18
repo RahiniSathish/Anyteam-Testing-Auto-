@@ -45,7 +45,7 @@ export const TestData = {
   },
   urls: {
     login: '/onboarding/Login',
-    base: process.env.BASE_URL || 'https://app.dev.anyteam.com',
+    base: process.env.BASE_URL || 'https://app.stage.anyteam.com',
   },
 } as const;
 
