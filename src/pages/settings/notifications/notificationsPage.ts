@@ -24,6 +24,14 @@ export class NotificationsPage {
   readonly threeDottedMenu: Locator; // Three-dotted menu button (ellipsis-vertical icon)
   readonly markAllAsReadButton: Locator; // Mark all as read button
 
+  // Filter action buttons
+  readonly applyFiltersButton: Locator; // Apply filters button
+  readonly clearAllButton: Locator; // Clear all button
+
+  // Context menu items for individual notifications
+  readonly markAsReadButton: Locator; // Context menu: Mark as Read
+  readonly markAsUnreadButton: Locator; // Context menu: Mark Selected as Unread
+
   constructor(page: Page) {
     this.page = page;
 
@@ -65,6 +73,17 @@ export class NotificationsPage {
     // Mark all as read button: <button class="w-full text-left px-4 py-3 hover:bg-slate-100">Mark all as read</button>
     // This button appears after clicking the filter button
     this.markAllAsReadButton = page.locator('button.w-full.text-left.px-4.py-3:has-text("Mark all as read")').first();
+
+    // Apply filters button: <button class="inline-flex items-center justify-center gap-2...bg-neutral-900 text-neutral-50...h-9 px-4 py-2 w-11/12 text-[10px] font-medium my-4 mx-3 rounded-b-md">Apply filters</button>
+    this.applyFiltersButton = page.locator('button:has-text("Apply filters")').first();
+
+    // Clear all button: <button class="inline-flex items-center justify-center gap-2...text-[#0F66BE] h-9 px-4 py-2 text-xs">Clear all</button>
+    this.clearAllButton = page.locator('button:has-text("Clear all")').first();
+
+    // Context menu buttons for individual notifications
+    // These appear when right-clicking on a notification item
+    this.markAsReadButton = page.locator('button:has-text("Mark as Read"), [role="menuitem"]:has-text("Mark as Read")').first();
+    this.markAsUnreadButton = page.locator('button:has-text("Mark Selected as Unread"), button:has-text("Mark as Unread"), [role="menuitem"]:has-text("Mark as Unread")').first();
   }
 
   /**
@@ -81,14 +100,23 @@ export class NotificationsPage {
     // Wait for page to be ready first
     await this.page.waitForLoadState('domcontentloaded', { timeout: 10000 }).catch(() => {});
     await this.page.waitForTimeout(2000);
-    
+
+    // Check if notifications panel is already open
+    const panelHeading = this.page.locator('h2:has-text("Notifications")').first();
+    const isPanelOpen = await panelHeading.isVisible({ timeout: 2000 }).catch(() => false);
+
+    if (isPanelOpen) {
+      console.log('✓ Notifications panel already open, skipping click');
+      return;
+    }
+
     // Wait for home page content to be visible (sidebar, main content, etc.)
     const homePageIndicators = [
       this.page.locator('[data-sidebar]'),
       this.page.locator('button[data-sidebar="menu-button"]'),
       this.page.locator('text=/Good (Morning|Afternoon|Evening)/i'),
     ];
-    
+
     let homePageReady = false;
     for (const indicator of homePageIndicators) {
       try {
@@ -101,32 +129,47 @@ export class NotificationsPage {
         continue;
       }
     }
-    
+
     if (!homePageReady) {
       // Wait a bit more for page to load
       await this.page.waitForTimeout(5000);
     }
-    
-    // Try multiple selectors to find the Notifications heading
+
+    // Click the sidebar notification button using the exact selector
+    // <button data-sidebar="menu-button"><h5 class="...text-grayText">Notifications</h5></button>
+    const notificationButton = this.page.locator('button[data-sidebar="menu-button"]:has(h5:has-text("Notifications"))').first();
+
+    try {
+      await notificationButton.waitFor({ state: 'visible', timeout: 10000 });
+      await notificationButton.scrollIntoViewIfNeeded().catch(() => {});
+      await this.page.waitForTimeout(500);
+      await notificationButton.click({ timeout: 5000 });
+      console.log('✓ Clicked Notifications button in sidebar');
+      await this.page.waitForTimeout(2000);
+      return;
+    } catch (e) {
+      console.log('Primary selector failed, trying fallback selectors...');
+    }
+
+    // Fallback: Try multiple selectors to find the Notifications heading
     const selectors = [
       'h5:has-text("Notifications")',
       'h5.text-grayText:has-text("Notifications")',
       'h5[class*="text-grayText"]:has-text("Notifications")',
       'h5[class*="pl-3"]:has-text("Notifications")',
       'h5[class*="text-[17px]"]:has-text("Notifications")',
-      'h5:has-text("Notifications")',
+      'button:has(h5:has-text("Notifications"))',
     ];
 
     let headingFound = false;
     for (const selector of selectors) {
       try {
         const element = this.page.locator(selector).first();
-        // Wait longer for the element to appear
         await element.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
         const isVisible = await element.isVisible({ timeout: 3000 }).catch(() => false);
         if (isVisible) {
           await element.scrollIntoViewIfNeeded().catch(() => {});
-          await this.page.waitForTimeout(500); // Small wait before click
+          await this.page.waitForTimeout(500);
           await element.click({ timeout: 5000 });
           headingFound = true;
           console.log(`✓ Found and clicked Notifications heading with selector: ${selector}`);
@@ -138,7 +181,6 @@ export class NotificationsPage {
     }
 
     if (!headingFound) {
-      // Take screenshot for debugging
       await this.page.screenshot({ path: 'test-results/notifications-heading-not-found.png', fullPage: true });
       throw new Error('Notifications heading not found. Screenshot saved to test-results/notifications-heading-not-found.png');
     }
@@ -277,10 +319,79 @@ export class NotificationsPage {
    * Click the filter button (list-filter icon) to open filter options
    */
   async clickFilterButton(): Promise<void> {
-    await this.filterButton.waitFor({ state: 'visible', timeout: 10000 });
-    await this.filterButton.scrollIntoViewIfNeeded().catch(() => {});
-    await this.filterButton.click({ timeout: 5000 });
-    await this.page.waitForTimeout(1000); // Wait for filter menu to open
+    console.log('  🔍 Attempting to click filter button...');
+
+    // First, ensure any open dropdowns are closed (from three-dotted menu)
+    await this.page.keyboard.press('Escape').catch(() => {});
+    await this.page.waitForTimeout(500);
+
+    // Click outside any dropdowns to close them
+    await this.page.locator('main').click({ position: { x: 10, y: 10 } }).catch(() => {});
+    await this.page.waitForTimeout(500);
+
+    // Use the exact filter button selector from the HTML
+    // <button class="... h-9 w-9 p-0 hover:bg-zinc-100 relative z-50" data-state="closed">
+    //   <svg class="lucide lucide-list-filter h-5 w-5 text-zinc-600">
+    const filterBtn = this.page.locator('button:has(svg.lucide-list-filter.h-5.w-5.text-zinc-600)').first();
+
+    // Verify button exists
+    const filterBtnCount = await filterBtn.count();
+    console.log(`  Filter button found: ${filterBtnCount > 0 ? 'YES' : 'NO'} (count: ${filterBtnCount})`);
+
+    if (filterBtnCount === 0) {
+      await this.page.screenshot({ path: 'test-results/filter-button-not-found.png', fullPage: true });
+      throw new Error('Filter button not found. Screenshot saved.');
+    }
+
+    await filterBtn.waitFor({ state: 'visible', timeout: 10000 });
+    await filterBtn.scrollIntoViewIfNeeded().catch(() => {});
+
+    // Take screenshot before click
+    await this.page.screenshot({ path: 'test-results/before-filter-click.png', fullPage: true });
+    console.log('  📸 Screenshot before click: test-results/before-filter-click.png');
+
+    // Try normal click first
+    try {
+      await filterBtn.click({ timeout: 3000 });
+      console.log('  ✓ Filter button clicked (normal click)');
+    } catch (e) {
+      // If blocked, use force click
+      console.log('  ⚠ Normal click blocked, using force click...');
+      await filterBtn.click({ force: true, timeout: 5000 });
+      console.log('  ✓ Filter button clicked (force click)');
+    }
+
+    await this.page.waitForTimeout(2000); // Increased wait for filter menu to open
+
+    // Take screenshot after click to verify dropdown opened
+    await this.page.screenshot({ path: 'test-results/after-filter-click.png', fullPage: true });
+    console.log('  📸 Screenshot after click: test-results/after-filter-click.png');
+
+    // Verify filter dropdown is actually open by checking for checkboxes
+    const readCheckboxVisible = await this.page.locator('label:has-text("Read")').isVisible({ timeout: 3000 }).catch(() => false);
+    const unreadCheckboxVisible = await this.page.locator('label:has-text("Unread")').isVisible({ timeout: 3000 }).catch(() => false);
+
+    console.log(`  Filter dropdown status: Read checkbox = ${readCheckboxVisible ? 'visible' : 'NOT visible'}, Unread checkbox = ${unreadCheckboxVisible ? 'visible' : 'NOT visible'}`);
+
+    if (!readCheckboxVisible && !unreadCheckboxVisible) {
+      console.log('  ⚠ WARNING: Filter dropdown may not have opened! Retrying...');
+      // Try clicking again
+      await filterBtn.click({ force: true, timeout: 5000 });
+      await this.page.waitForTimeout(2000);
+
+      // Check again
+      const readCheckboxVisible2 = await this.page.locator('label:has-text("Read")').isVisible({ timeout: 3000 }).catch(() => false);
+      const unreadCheckboxVisible2 = await this.page.locator('label:has-text("Unread")').isVisible({ timeout: 3000 }).catch(() => false);
+
+      if (!readCheckboxVisible2 && !unreadCheckboxVisible2) {
+        await this.page.screenshot({ path: 'test-results/filter-dropdown-failed-to-open.png', fullPage: true });
+        throw new Error('Filter dropdown failed to open after retry. Screenshot saved to test-results/filter-dropdown-failed-to-open.png');
+      }
+
+      console.log('  ✓ Filter dropdown opened after retry');
+    } else {
+      console.log('  ✓ Filter dropdown opened successfully');
+    }
   }
 
   /**
@@ -377,7 +488,42 @@ export class NotificationsPage {
    */
   async isReadCheckboxVisible(): Promise<boolean> {
     try {
-      return await this.readCheckbox.isVisible({ timeout: 5000 });
+      // Wait a bit for filter menu to open
+      await this.page.waitForTimeout(500);
+
+      // Try multiple selectors to find the Read checkbox
+      const selectors = [
+        'label:has-text("Read") button[type="button"][role="checkbox"]',
+        'label:has-text("Read") button[role="checkbox"]',
+        'button[role="checkbox"]:near(label:has-text("Read"))',
+        'label:has-text("Read")',
+      ];
+
+      console.log('  🔍 Checking Read checkbox visibility...');
+
+      for (const selector of selectors) {
+        try {
+          const checkbox = this.page.locator(selector).first();
+          const count = await checkbox.count();
+          const isVisible = await checkbox.isVisible({ timeout: 3000 }).catch(() => false);
+          console.log(`    Selector "${selector}": count=${count}, visible=${isVisible}`);
+          if (isVisible) {
+            // Scroll into view to ensure it's actually visible
+            await checkbox.scrollIntoViewIfNeeded().catch(() => {});
+            console.log('  ✓ Read checkbox is visible');
+            return true;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      console.log('  ✗ Read checkbox NOT visible');
+      // Take screenshot for debugging
+      await this.page.screenshot({ path: 'test-results/read-checkbox-not-visible.png', fullPage: true });
+      console.log('  📸 Screenshot saved: test-results/read-checkbox-not-visible.png');
+
+      return false;
     } catch {
       return false;
     }
@@ -388,7 +534,42 @@ export class NotificationsPage {
    */
   async isUnreadCheckboxVisible(): Promise<boolean> {
     try {
-      return await this.unreadCheckbox.isVisible({ timeout: 5000 });
+      // Wait a bit for filter menu to open
+      await this.page.waitForTimeout(500);
+
+      // Try multiple selectors to find the Unread checkbox
+      const selectors = [
+        'label:has-text("Unread") button[type="button"][role="checkbox"]',
+        'label:has-text("Unread") button[role="checkbox"]',
+        'button[role="checkbox"]:near(label:has-text("Unread"))',
+        'label:has-text("Unread")',
+      ];
+
+      console.log('  🔍 Checking Unread checkbox visibility...');
+
+      for (const selector of selectors) {
+        try {
+          const checkbox = this.page.locator(selector).first();
+          const count = await checkbox.count();
+          const isVisible = await checkbox.isVisible({ timeout: 3000 }).catch(() => false);
+          console.log(`    Selector "${selector}": count=${count}, visible=${isVisible}`);
+          if (isVisible) {
+            // Scroll into view to ensure it's actually visible
+            await checkbox.scrollIntoViewIfNeeded().catch(() => {});
+            console.log('  ✓ Unread checkbox is visible');
+            return true;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      console.log('  ✗ Unread checkbox NOT visible');
+      // Take screenshot for debugging
+      await this.page.screenshot({ path: 'test-results/unread-checkbox-not-visible.png', fullPage: true });
+      console.log('  📸 Screenshot saved: test-results/unread-checkbox-not-visible.png');
+
+      return false;
     } catch {
       return false;
     }
@@ -618,6 +799,332 @@ export class NotificationsPage {
     }
 
     return results;
+  }
+
+  /**
+   * Right-click on a notification item to open context menu
+   * @param index - The index of the notification to right-click (0-based)
+   */
+  async rightClickNotification(index: number = 0): Promise<void> {
+    // Get all notification items
+    const notificationItems = this.page.locator('div.flex.gap-3.px-4.py-3.border-b.border-b-zinc-100.items-start.cursor-pointer');
+    const count = await notificationItems.count();
+
+    if (count === 0) {
+      throw new Error('No notification items found to right-click');
+    }
+
+    if (index >= count) {
+      throw new Error(`Notification index ${index} is out of bounds. Only ${count} notifications found.`);
+    }
+
+    // Right-click on the specified notification
+    const targetNotification = notificationItems.nth(index);
+    await targetNotification.scrollIntoViewIfNeeded().catch(() => {});
+    await targetNotification.click({ button: 'right', timeout: 5000 });
+    await this.page.waitForTimeout(1000); // Wait for context menu to appear
+  }
+
+  /**
+   * Click "Mark as Read" button from context menu
+   */
+  async clickMarkAsRead(): Promise<void> {
+    // Try multiple selectors to find the Mark as Read button
+    const selectors = [
+      'button:has-text("Mark as Read")',
+      '[role="menuitem"]:has-text("Mark as Read")',
+      'button.w-full:has-text("Mark as Read")',
+      '[class*="menu"] button:has-text("Mark as Read")',
+    ];
+
+    let buttonFound = false;
+    for (const selector of selectors) {
+      try {
+        const button = this.page.locator(selector).first();
+        const isVisible = await button.isVisible({ timeout: 3000 }).catch(() => false);
+        if (isVisible) {
+          await button.scrollIntoViewIfNeeded().catch(() => {});
+          await button.click({ timeout: 5000 });
+          buttonFound = true;
+          console.log(`✓ Clicked Mark as Read with selector: ${selector}`);
+          break;
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+
+    if (!buttonFound) {
+      await this.page.screenshot({ path: 'test-results/mark-as-read-not-found.png', fullPage: true });
+      throw new Error('Mark as Read button not found. Screenshot saved to test-results/mark-as-read-not-found.png');
+    }
+
+    await this.page.waitForTimeout(1000); // Wait for action to complete
+  }
+
+  /**
+   * Click "Mark as Unread" or "Mark Selected as Unread" button from context menu
+   */
+  async clickMarkAsUnread(): Promise<void> {
+    // Try multiple selectors to find the Mark as Unread button
+    const selectors = [
+      'button:has-text("Mark Selected as Unread")',
+      'button:has-text("Mark as Unread")',
+      '[role="menuitem"]:has-text("Mark as Unread")',
+      '[role="menuitem"]:has-text("Mark Selected as Unread")',
+      'button.w-full:has-text("Mark as Unread")',
+      '[class*="menu"] button:has-text("Mark as Unread")',
+    ];
+
+    let buttonFound = false;
+    for (const selector of selectors) {
+      try {
+        const button = this.page.locator(selector).first();
+        const isVisible = await button.isVisible({ timeout: 3000 }).catch(() => false);
+        if (isVisible) {
+          await button.scrollIntoViewIfNeeded().catch(() => {});
+          await button.click({ timeout: 5000 });
+          buttonFound = true;
+          console.log(`✓ Clicked Mark as Unread with selector: ${selector}`);
+          break;
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+
+    if (!buttonFound) {
+      await this.page.screenshot({ path: 'test-results/mark-as-unread-not-found.png', fullPage: true });
+      throw new Error('Mark as Unread button not found. Screenshot saved to test-results/mark-as-unread-not-found.png');
+    }
+
+    await this.page.waitForTimeout(1000); // Wait for action to complete
+  }
+
+  /**
+   * Verify "Mark as Read" button is visible in context menu
+   */
+  async isMarkAsReadButtonVisible(): Promise<boolean> {
+    const selectors = [
+      'button:has-text("Mark as Read")',
+      '[role="menuitem"]:has-text("Mark as Read")',
+    ];
+
+    for (const selector of selectors) {
+      try {
+        const button = this.page.locator(selector).first();
+        const isVisible = await button.isVisible({ timeout: 2000 }).catch(() => false);
+        if (isVisible) {
+          return true;
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Verify "Mark as Unread" or "Mark Selected as Unread" button is visible in context menu
+   */
+  async isMarkAsUnreadButtonVisible(): Promise<boolean> {
+    const selectors = [
+      'button:has-text("Mark Selected as Unread")',
+      'button:has-text("Mark as Unread")',
+      '[role="menuitem"]:has-text("Mark as Unread")',
+      '[role="menuitem"]:has-text("Mark Selected as Unread")',
+    ];
+
+    for (const selector of selectors) {
+      try {
+        const button = this.page.locator(selector).first();
+        const isVisible = await button.isVisible({ timeout: 2000 }).catch(() => false);
+        if (isVisible) {
+          return true;
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Click "Apply filters" button
+   * Based on: <button class="inline-flex items-center justify-center gap-2...bg-neutral-900 text-neutral-50...h-9 px-4 py-2 w-11/12 text-[10px] font-medium my-4 mx-3 rounded-b-md">Apply filters</button>
+   */
+  async clickApplyFilters(): Promise<void> {
+    // Wait a bit for the button to be ready
+    await this.page.waitForTimeout(500);
+
+    // Try multiple selectors to find the Apply filters button
+    const selectors = [
+      'button:has-text("Apply filters")',
+      'button.bg-neutral-900:has-text("Apply filters")',
+      'button.text-neutral-50:has-text("Apply filters")',
+      'button.h-9.px-4.py-2:has-text("Apply filters")',
+      'button.w-11\\/12:has-text("Apply filters")',
+      'button.text-\\[10px\\]:has-text("Apply filters")',
+    ];
+
+    let buttonFound = false;
+    for (const selector of selectors) {
+      try {
+        const button = this.page.locator(selector).first();
+        const isVisible = await button.isVisible({ timeout: 5000 }).catch(() => false);
+        if (isVisible) {
+          await button.scrollIntoViewIfNeeded().catch(() => {});
+          await button.click({ timeout: 5000 });
+          buttonFound = true;
+          console.log(`✓ Found and clicked Apply filters button with selector: ${selector}`);
+          break;
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+
+    if (!buttonFound) {
+      await this.page.screenshot({ path: 'test-results/apply-filters-not-found.png', fullPage: true });
+      throw new Error('Apply filters button not found. Screenshot saved to test-results/apply-filters-not-found.png');
+    }
+
+    await this.page.waitForTimeout(1000); // Wait for action to complete
+  }
+
+  /**
+   * Verify "Apply filters" button is visible
+   */
+  async isApplyFiltersButtonVisible(): Promise<boolean> {
+    await this.page.waitForTimeout(500);
+
+    const selectors = [
+      'button:has-text("Apply filters")',
+      'button.bg-neutral-900:has-text("Apply filters")',
+      'button.text-neutral-50:has-text("Apply filters")',
+      'button.h-9.px-4.py-2:has-text("Apply filters")',
+      'button.w-11\\/12:has-text("Apply filters")',
+      'button.text-\\[10px\\]:has-text("Apply filters")',
+      'button:has-text("Apply filters"):visible',
+    ];
+
+    console.log('  🔍 Checking Apply filters button visibility...');
+
+    for (const selector of selectors) {
+      try {
+        const button = this.page.locator(selector).first();
+        const count = await button.count();
+        const isVisible = await button.isVisible({ timeout: 3000 }).catch(() => false);
+        console.log(`    Selector "${selector}": count=${count}, visible=${isVisible}`);
+        if (isVisible) {
+          // Scroll into view to ensure it's actually visible
+          await button.scrollIntoViewIfNeeded().catch(() => {});
+          // Double-check it's still visible after scrolling
+          const stillVisible = await button.isVisible({ timeout: 1000 }).catch(() => false);
+          if (stillVisible) {
+            console.log('  ✓ Apply filters button is visible');
+            return true;
+          }
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    console.log('  ✗ Apply filters button NOT visible');
+    await this.page.screenshot({ path: 'test-results/apply-filters-not-visible.png', fullPage: true });
+    console.log('  📸 Screenshot saved: test-results/apply-filters-not-visible.png');
+
+    return false;
+  }
+
+  /**
+   * Click "Clear all" button
+   * Based on: <button class="inline-flex items-center justify-center gap-2...text-[#0F66BE] h-9 px-4 py-2 text-xs">Clear all</button>
+   */
+  async clickClearAll(): Promise<void> {
+    // Wait a bit for the button to be ready
+    await this.page.waitForTimeout(500);
+
+    // Try multiple selectors to find the Clear all button
+    const selectors = [
+      'button:has-text("Clear all")',
+      'button.text-\\[\\#0F66BE\\]:has-text("Clear all")',
+      'button.text-xs:has-text("Clear all")',
+      'button.h-9.px-4.py-2:has-text("Clear all")',
+      'button.underline-offset-4:has-text("Clear all")',
+    ];
+
+    let buttonFound = false;
+    for (const selector of selectors) {
+      try {
+        const button = this.page.locator(selector).first();
+        const isVisible = await button.isVisible({ timeout: 5000 }).catch(() => false);
+        if (isVisible) {
+          await button.scrollIntoViewIfNeeded().catch(() => {});
+          await button.click({ timeout: 5000 });
+          buttonFound = true;
+          console.log(`✓ Found and clicked Clear all button with selector: ${selector}`);
+          break;
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+
+    if (!buttonFound) {
+      await this.page.screenshot({ path: 'test-results/clear-all-not-found.png', fullPage: true });
+      throw new Error('Clear all button not found. Screenshot saved to test-results/clear-all-not-found.png');
+    }
+
+    await this.page.waitForTimeout(1000); // Wait for action to complete
+  }
+
+  /**
+   * Verify "Clear all" button is visible
+   */
+  async isClearAllButtonVisible(): Promise<boolean> {
+    await this.page.waitForTimeout(500);
+
+    const selectors = [
+      'button:has-text("Clear all")',
+      'button.text-\\[\\#0F66BE\\]:has-text("Clear all")',
+      'button.text-xs:has-text("Clear all")',
+      'button.h-9.px-4.py-2:has-text("Clear all")',
+      'button.underline-offset-4:has-text("Clear all")',
+      'button:has-text("Clear all"):visible',
+    ];
+
+    console.log('  🔍 Checking Clear all button visibility...');
+
+    for (const selector of selectors) {
+      try {
+        const button = this.page.locator(selector).first();
+        const count = await button.count();
+        const isVisible = await button.isVisible({ timeout: 3000 }).catch(() => false);
+        console.log(`    Selector "${selector}": count=${count}, visible=${isVisible}`);
+        if (isVisible) {
+          // Scroll into view to ensure it's actually visible
+          await button.scrollIntoViewIfNeeded().catch(() => {});
+          // Double-check it's still visible after scrolling
+          const stillVisible = await button.isVisible({ timeout: 1000 }).catch(() => false);
+          if (stillVisible) {
+            console.log('  ✓ Clear all button is visible');
+            return true;
+          }
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    console.log('  ✗ Clear all button NOT visible');
+    await this.page.screenshot({ path: 'test-results/clear-all-not-visible.png', fullPage: true });
+    console.log('  📸 Screenshot saved: test-results/clear-all-not-visible.png');
+
+    return false;
   }
 }
 
