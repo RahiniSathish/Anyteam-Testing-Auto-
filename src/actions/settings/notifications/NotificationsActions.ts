@@ -169,5 +169,69 @@ export class NotificationsActions {
   }> {
     return await this.notificationsPage.verifyAllNotificationsMarkedAsRead();
   }
+
+  /**
+   * Right-click on a notification item to open context menu
+   * @param index - The index of the notification to right-click (0-based, default: 0)
+   */
+  async rightClickNotification(index: number = 0): Promise<void> {
+    await this.notificationsPage.rightClickNotification(index);
+  }
+
+  /**
+   * Click "Mark as Read" button from context menu
+   */
+  async clickMarkAsRead(): Promise<void> {
+    await this.notificationsPage.clickMarkAsRead();
+  }
+
+  /**
+   * Click "Mark as Unread" or "Mark Selected as Unread" button from context menu
+   */
+  async clickMarkAsUnread(): Promise<void> {
+    await this.notificationsPage.clickMarkAsUnread();
+  }
+
+  /**
+   * Verify "Mark as Read" button is visible in context menu
+   */
+  async verifyMarkAsReadButtonVisible(): Promise<boolean> {
+    return await this.notificationsPage.isMarkAsReadButtonVisible();
+  }
+
+  /**
+   * Verify "Mark as Unread" or "Mark Selected as Unread" button is visible in context menu
+   */
+  async verifyMarkAsUnreadButtonVisible(): Promise<boolean> {
+    return await this.notificationsPage.isMarkAsUnreadButtonVisible();
+  }
+
+  /**
+   * Click "Apply filters" button
+   */
+  async clickApplyFilters(): Promise<void> {
+    await this.notificationsPage.clickApplyFilters();
+  }
+
+  /**
+   * Verify "Apply filters" button is visible
+   */
+  async verifyApplyFiltersButtonVisible(): Promise<boolean> {
+    return await this.notificationsPage.isApplyFiltersButtonVisible();
+  }
+
+  /**
+   * Click "Clear all" button
+   */
+  async clickClearAll(): Promise<void> {
+    await this.notificationsPage.clickClearAll();
+  }
+
+  /**
+   * Verify "Clear all" button is visible
+   */
+  async verifyClearAllButtonVisible(): Promise<boolean> {
+    return await this.notificationsPage.isClearAllButtonVisible();
+  }
 }
 

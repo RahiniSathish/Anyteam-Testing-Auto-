@@ -16,7 +16,7 @@ export default defineConfig({
     ['json', { outputFile: 'test-results/results.json' }]
   ],
   use: {
-    baseURL: process.env.BASE_URL || 'https://app.dev.anyteam.com',
+    baseURL: process.env.BASE_URL || 'https://app.stage.anyteam.com',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
