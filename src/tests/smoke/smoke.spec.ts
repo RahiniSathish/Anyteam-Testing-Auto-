@@ -1581,42 +1581,123 @@ test.describe('Complete Login Flow - End to End', () => {
             await joinButton.scrollIntoViewIfNeeded().catch(() => {});
             
             try {
+              // Get initial page count
+              const initialPageCount = context.pages().length;
+              console.log(`  Initial page count: ${initialPageCount}`);
+              
               // Set up listener for new page before clicking (non-blocking)
-              const pagePromise = Promise.race([
-                context.waitForEvent('page', { timeout: 20000 }),
-                new Promise<null>((resolve) => setTimeout(() => resolve(null), 20000))
-              ]).catch(() => null) as Promise<Page | null>;
+              const pagePromise: Promise<Page | null> = context.waitForEvent('page', { timeout: 20000 }).catch(() => null);
               
               // Click the join button
               await joinButton.click({ timeout: 5000 });
+              console.log('  ✓ Join button clicked');
               
-              // Wait a bit for page to potentially open
-              await appPage.waitForTimeout(2000);
+              // Wait a bit for pages to potentially open
+              await appPage.waitForTimeout(3000);
               
-              // Wait for new page to open (Google Meet/Calendar join page)
-              const newPage = await pagePromise;
+              // Wait for first new page to open (if any)
+              const firstNewPage = await pagePromise;
               
-              if (newPage) {
-                console.log('  ✓ New page opened after clicking Join button');
-                console.log(`    New page URL: ${newPage.url()}`);
-                
-                // Wait for the new page to load
-                await newPage.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
-                await newPage.waitForTimeout(2000);
-                
-                // Verify it's a Google Meet/Calendar page
-                const newPageUrl = newPage.url();
-                const isGoogleMeet = newPageUrl.includes('meet.google.com') || 
-                                    newPageUrl.includes('calendar.google.com') ||
-                                    newPageUrl.includes('accounts.google.com');
-                
-                if (isGoogleMeet) {
-                  console.log('  ✓ Google Meet/Calendar join page opened successfully');
-                  await newPage.screenshot({ path: 'test-results/meeting-insights-join-page.png', fullPage: true });
-                  console.log('  ✓ Screenshot saved: test-results/meeting-insights-join-page.png');
-                } else {
-                  console.log(`  ⚠ New page opened but URL doesn't match Google Meet/Calendar: ${newPageUrl}`);
+              // Check all pages in context to find newly opened pages
+              const allContextPages = context.pages();
+              const openedPages: Page[] = [];
+              
+              console.log(`  Total pages in context after click: ${allContextPages.length}`);
+              
+              // Check all pages to find Google Meet/Calendar pages (skip the original app page)
+              for (const testPage of allContextPages) {
+                try {
+                  // Skip the original app page
+                  if (testPage === appPage) {
+                    continue;
+                  }
+                  
+                  const pageUrl = testPage.url();
+                  if (pageUrl.includes('meet.google.com') || 
+                      pageUrl.includes('calendar.google.com') ||
+                      pageUrl.includes('accounts.google.com')) {
+                    console.log(`  ✓ Found Google Meet/Calendar page: ${pageUrl}`);
+                    if (!openedPages.includes(testPage)) {
+                      openedPages.push(testPage);
+                    }
+                  }
+                } catch (e) {
+                  continue;
                 }
+              }
+              
+              // If we got a new page from the promise and it's not already in the list, add it
+              if (firstNewPage && !openedPages.includes(firstNewPage)) {
+                const newPageUrl = firstNewPage.url();
+                if (newPageUrl.includes('meet.google.com') || 
+                    newPageUrl.includes('calendar.google.com') ||
+                    newPageUrl.includes('accounts.google.com')) {
+                  openedPages.push(firstNewPage);
+                }
+              }
+              
+              // Wait a bit more and check again for any additional pages that might have opened
+              await appPage.waitForTimeout(2000);
+              const finalContextPages = context.pages();
+              for (const testPage of finalContextPages) {
+                try {
+                  if (testPage === appPage || openedPages.includes(testPage)) {
+                    continue;
+                  }
+                  
+                  const pageUrl = testPage.url();
+                  if (pageUrl.includes('meet.google.com') || 
+                      pageUrl.includes('calendar.google.com') ||
+                      pageUrl.includes('accounts.google.com')) {
+                    console.log(`  ✓ Found additional Google Meet/Calendar page: ${pageUrl}`);
+                    openedPages.push(testPage);
+                  }
+                } catch (e) {
+                  continue;
+                }
+              }
+              
+              if (openedPages.length > 0) {
+                console.log(`  ✓ ${openedPages.length} page(s) opened after clicking Join button`);
+                
+                // Process each opened page
+                for (let i = 0; i < openedPages.length; i++) {
+                  const openedPage = openedPages[i];
+                  try {
+                    console.log(`\n    Processing page ${i + 1}/${openedPages.length}...`);
+                    console.log(`      URL: ${openedPage.url()}`);
+                    
+                    // Wait for the page to load
+                    await openedPage.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
+                    await openedPage.waitForTimeout(2000);
+                    
+                    // Verify it's a Google Meet/Calendar page
+                    const pageUrl = openedPage.url();
+                    const isGoogleMeet = pageUrl.includes('meet.google.com');
+                    const isGoogleCalendar = pageUrl.includes('calendar.google.com');
+                    const isGoogleAccounts = pageUrl.includes('accounts.google.com');
+                    
+                    if (isGoogleMeet) {
+                      console.log(`      ✓ Google Meet page opened successfully`);
+                      await openedPage.screenshot({ path: `test-results/meeting-insights-join-meet-page-${i + 1}.png`, fullPage: true });
+                      console.log(`      ✓ Screenshot saved: test-results/meeting-insights-join-meet-page-${i + 1}.png`);
+                    } else if (isGoogleCalendar) {
+                      console.log(`      ✓ Google Calendar page opened successfully`);
+                      await openedPage.screenshot({ path: `test-results/meeting-insights-join-calendar-page-${i + 1}.png`, fullPage: true });
+                      console.log(`      ✓ Screenshot saved: test-results/meeting-insights-join-calendar-page-${i + 1}.png`);
+                    } else if (isGoogleAccounts) {
+                      console.log(`      ✓ Google Accounts page opened (authentication required)`);
+                      await openedPage.screenshot({ path: `test-results/meeting-insights-join-accounts-page-${i + 1}.png`, fullPage: true });
+                      console.log(`      ✓ Screenshot saved: test-results/meeting-insights-join-accounts-page-${i + 1}.png`);
+                    }
+                    
+                    console.log(`      ✓ Page ${i + 1} processed and accessible`);
+                  } catch (error) {
+                    console.log(`      ⚠ Error processing page ${i + 1}:`, error instanceof Error ? error.message : String(error));
+                  }
+                }
+                
+                console.log(`\n  ✓ Successfully accessed ${openedPages.length} page(s) opened by Join button`);
               } else {
                 // Check if we were redirected to a join page in the same tab
                 await appPage.waitForTimeout(3000);
@@ -1628,29 +1709,10 @@ test.describe('Complete Login Flow - End to End', () => {
                   await appPage.screenshot({ path: 'test-results/meeting-insights-join-redirect.png', fullPage: true });
                   console.log('  ✓ Screenshot saved: test-results/meeting-insights-join-redirect.png');
                 } else {
-                  // Check all pages in context - maybe page opened but wasn't caught
-                  const allPages = context.pages();
-                  let foundMeetPage = false;
-                  
-                  for (const testPage of allPages) {
-                    try {
-                      const testPageUrl = testPage.url();
-                      if (testPageUrl.includes('meet.google.com') || testPageUrl.includes('calendar.google.com')) {
-                        console.log(`  ✓ Found Google Meet/Calendar page in context: ${testPageUrl}`);
-                        await testPage.screenshot({ path: 'test-results/meeting-insights-join-page-found.png', fullPage: true });
-                        console.log('  ✓ Screenshot saved: test-results/meeting-insights-join-page-found.png');
-                        foundMeetPage = true;
-                        break;
-                      }
-                    } catch (e) {
-                      continue;
-                    }
-                  }
-                  
-                  if (!foundMeetPage) {
-                    console.log('  ✓ Join button clicked successfully');
-                    console.log('  ⚠ No new page detected - join may have opened in same page or requires user interaction');
-                  }
+                  console.log('  ✓ Join button clicked successfully');
+                  console.log('  ⚠ No new pages detected - join may have opened in same page or requires user interaction');
+                  await appPage.screenshot({ path: 'test-results/meeting-insights-join-no-pages.png', fullPage: true });
+                  console.log('  ✓ Screenshot saved: test-results/meeting-insights-join-no-pages.png');
                 }
               }
             } catch (error) {
@@ -2167,104 +2229,154 @@ test.describe('Complete Login Flow - End to End', () => {
             console.log('✓ Found Join button');
             
             try {
+              // Get initial page count
+              const initialPageCount = context.pages().length;
+              console.log(`  Initial page count: ${initialPageCount}`);
+              
               // Set up listener for new page before clicking (non-blocking)
-              const pagePromise = Promise.race([
-                context.waitForEvent('page', { timeout: 20000 }),
-                new Promise<null>((resolve) => setTimeout(() => resolve(null), 20000))
-              ]).catch(() => null) as Promise<Page | null>;
+              const pagePromise: Promise<Page | null> = context.waitForEvent('page', { timeout: 20000 }).catch(() => null);
               
               // Click the Join button
               await calendarActions.clickJoinButton();
+              console.log('  ✓ Join button clicked');
               
-              // Wait a bit for page to potentially open
-              await appPage.waitForTimeout(2000);
+              // Wait a bit for pages to potentially open
+              await appPage.waitForTimeout(3000);
               
-              // Wait for new page to open (Google Meet/Calendar join page)
-              const newPage = await pagePromise;
+              // Wait for first new page to open (if any)
+              const firstNewPage = await pagePromise;
               
-              if (newPage) {
-                console.log('✓ New page opened after clicking Join button');
-                console.log(`  New page URL: ${newPage.url()}`);
-                
-                // Wait for the new page to load
-                await newPage.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
-                await newPage.waitForTimeout(2000);
-                
-                // Verify it's a Google Meet/Calendar page
-                const newPageUrl = newPage.url();
-                const isGoogleMeet = newPageUrl.includes('meet.google.com') || 
-                                    newPageUrl.includes('calendar.google.com') ||
-                                    newPageUrl.includes('accounts.google.com');
-                
-                if (isGoogleMeet) {
-                  console.log('✓ Google Meet/Calendar join page opened successfully');
-                  console.log(`  Page URL: ${newPageUrl}`);
-                  
-                  // Take screenshot of the join page
-                  await newPage.screenshot({ path: 'test-results/calendar-join-page-opened.png', fullPage: true });
-                  console.log('✓ Screenshot saved: test-results/calendar-join-page-opened.png');
-                  
-                  // Check for join-related elements on the new page
-                  const joinButtonOnNewPage = newPage.locator('button:has-text("Join"), button:has-text("Join now"), [aria-label*="Join" i]').first();
-                  const isJoinButtonOnNewPageVisible = await joinButtonOnNewPage.isVisible({ timeout: 10000 }).catch(() => false);
-                  
-                  if (isJoinButtonOnNewPageVisible) {
-                    console.log('✓ Join button found on Google Meet/Calendar page');
-                  } else {
-                    console.log('⚠ Join button not immediately visible on new page (page may still be loading)');
+              // Check all pages in context to find newly opened pages
+              const allContextPages = context.pages();
+              const openedPages: Page[] = [];
+              
+              console.log(`  Total pages in context after click: ${allContextPages.length}`);
+              
+              // Check all pages to find Google Meet/Calendar pages (skip the original app page)
+              for (const testPage of allContextPages) {
+                try {
+                  // Skip the original app page
+                  if (testPage === appPage) {
+                    continue;
                   }
                   
-                  // Keep the page open for verification
-                  console.log('✓ Meeting joined from calendar - Google Calendar/Meet page is open!');
-                } else {
-                  console.log(`⚠ New page opened but URL doesn't match Google Meet/Calendar: ${newPageUrl}`);
-                  await newPage.screenshot({ path: 'test-results/calendar-join-page-unexpected.png', fullPage: true });
-                  console.log('✓ Screenshot saved: test-results/calendar-join-page-unexpected.png');
+                  const pageUrl = testPage.url();
+                  if (pageUrl.includes('meet.google.com') || 
+                      pageUrl.includes('calendar.google.com') ||
+                      pageUrl.includes('accounts.google.com')) {
+                    console.log(`  ✓ Found Google Meet/Calendar page: ${pageUrl}`);
+                    if (!openedPages.includes(testPage)) {
+                      openedPages.push(testPage);
+                    }
+                  }
+                } catch (e) {
+                  continue;
                 }
+              }
+              
+              // If we got a new page from the promise and it's not already in the list, add it
+              if (firstNewPage && !openedPages.includes(firstNewPage)) {
+                const newPageUrl = firstNewPage.url();
+                if (newPageUrl.includes('meet.google.com') || 
+                    newPageUrl.includes('calendar.google.com') ||
+                    newPageUrl.includes('accounts.google.com')) {
+                  openedPages.push(firstNewPage);
+                }
+              }
+              
+              // Wait a bit more and check again for any additional pages that might have opened
+              await appPage.waitForTimeout(2000);
+              const finalContextPages = context.pages();
+              for (const testPage of finalContextPages) {
+                try {
+                  if (testPage === appPage || openedPages.includes(testPage)) {
+                    continue;
+                  }
+                  
+                  const pageUrl = testPage.url();
+                  if (pageUrl.includes('meet.google.com') || 
+                      pageUrl.includes('calendar.google.com') ||
+                      pageUrl.includes('accounts.google.com')) {
+                    console.log(`  ✓ Found additional Google Meet/Calendar page: ${pageUrl}`);
+                    openedPages.push(testPage);
+                  }
+                } catch (e) {
+                  continue;
+                }
+              }
+              
+              if (openedPages.length > 0) {
+                console.log(`  ✓ ${openedPages.length} page(s) opened after clicking Join button`);
+                
+                // Process each opened page
+                for (let i = 0; i < openedPages.length; i++) {
+                  const openedPage = openedPages[i];
+                  try {
+                    console.log(`\n    Processing page ${i + 1}/${openedPages.length}...`);
+                    console.log(`      URL: ${openedPage.url()}`);
+                    
+                    // Wait for the page to load
+                    await openedPage.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
+                    await openedPage.waitForTimeout(2000);
+                    
+                    // Verify it's a Google Meet/Calendar page
+                    const pageUrl = openedPage.url();
+                    const isGoogleMeet = pageUrl.includes('meet.google.com');
+                    const isGoogleCalendar = pageUrl.includes('calendar.google.com');
+                    const isGoogleAccounts = pageUrl.includes('accounts.google.com');
+                    
+                    if (isGoogleMeet) {
+                      console.log(`      ✓ Google Meet page opened successfully`);
+                      await openedPage.screenshot({ path: `test-results/calendar-join-meet-page-${i + 1}.png`, fullPage: true });
+                      console.log(`      ✓ Screenshot saved: test-results/calendar-join-meet-page-${i + 1}.png`);
+                      
+                      // Check for join-related elements on the new page
+                      const joinButtonOnNewPage = openedPage.locator('button:has-text("Join"), button:has-text("Join now"), [aria-label*="Join" i]').first();
+                      const isJoinButtonOnNewPageVisible = await joinButtonOnNewPage.isVisible({ timeout: 10000 }).catch(() => false);
+                      
+                      if (isJoinButtonOnNewPageVisible) {
+                        console.log(`      ✓ Join button found on Google Meet page`);
+                      }
+                    } else if (isGoogleCalendar) {
+                      console.log(`      ✓ Google Calendar page opened successfully`);
+                      await openedPage.screenshot({ path: `test-results/calendar-join-calendar-page-${i + 1}.png`, fullPage: true });
+                      console.log(`      ✓ Screenshot saved: test-results/calendar-join-calendar-page-${i + 1}.png`);
+                    } else if (isGoogleAccounts) {
+                      console.log(`      ✓ Google Accounts page opened (authentication required)`);
+                      await openedPage.screenshot({ path: `test-results/calendar-join-accounts-page-${i + 1}.png`, fullPage: true });
+                      console.log(`      ✓ Screenshot saved: test-results/calendar-join-accounts-page-${i + 1}.png`);
+                    }
+                    
+                    console.log(`      ✓ Page ${i + 1} processed and accessible`);
+                  } catch (error) {
+                    console.log(`      ⚠ Error processing page ${i + 1}:`, error instanceof Error ? error.message : String(error));
+                  }
+                }
+                
+                console.log(`\n  ✓ Successfully accessed ${openedPages.length} page(s) opened by Join button`);
+                console.log('  ✓ Meeting joined from calendar - Google Calendar/Meet page(s) is/are open!');
               } else {
                 // Check if we were redirected to a join page in the same tab
                 await appPage.waitForTimeout(3000);
                 const currentUrl = appPage.url();
                 
                 if (currentUrl.includes('meet.google.com') || currentUrl.includes('calendar.google.com')) {
-                  console.log('✓ Current page redirected to Google Meet/Calendar join page');
-                  console.log(`  URL: ${currentUrl}`);
+                  console.log('  ✓ Current page redirected to Google Meet/Calendar join page');
+                  console.log(`    URL: ${currentUrl}`);
                   await appPage.screenshot({ path: 'test-results/calendar-join-redirect.png', fullPage: true });
-                  console.log('✓ Screenshot saved: test-results/calendar-join-redirect.png');
+                  console.log('  ✓ Screenshot saved: test-results/calendar-join-redirect.png');
+                  console.log('  ✓ Meeting joined from calendar - Google Calendar/Meet page is open!');
                 } else {
-                  // Check all pages in context - maybe page opened but wasn't caught
-                  const allPages = context.pages();
-                  let foundMeetPage = false;
-                  
-                  for (const testPage of allPages) {
-                    try {
-                      const testPageUrl = testPage.url();
-                      if (testPageUrl.includes('meet.google.com') || testPageUrl.includes('calendar.google.com')) {
-                        console.log(`✓ Found Google Meet/Calendar page in context: ${testPageUrl}`);
-                        await testPage.screenshot({ path: 'test-results/calendar-join-page-found.png', fullPage: true });
-                        console.log('✓ Screenshot saved: test-results/calendar-join-page-found.png');
-                        foundMeetPage = true;
-                        break;
-                      }
-                    } catch (e) {
-                      continue;
-                    }
-                  }
-                  
-                  if (!foundMeetPage) {
-                    console.log('✓ Join button clicked successfully');
-                    console.log('⚠ No new page detected - join may have opened in same page or requires user interaction');
-                    
-                    // Take screenshot for verification
-                    await appPage.screenshot({ path: 'test-results/calendar-join-complete.png', fullPage: true });
-                    console.log('✓ Screenshot saved: test-results/calendar-join-complete.png');
-                  }
+                  console.log('  ✓ Join button clicked successfully');
+                  console.log('  ⚠ No new pages detected - join may have opened in same page or requires user interaction');
+                  await appPage.screenshot({ path: 'test-results/calendar-join-complete.png', fullPage: true });
+                  console.log('  ✓ Screenshot saved: test-results/calendar-join-complete.png');
                 }
               }
             } catch (error) {
-              console.log('⚠ Error during join button click:', error instanceof Error ? error.message : String(error));
+              console.log('  ⚠ Error during join button click:', error instanceof Error ? error.message : String(error));
               await appPage.screenshot({ path: 'test-results/calendar-join-error.png', fullPage: true });
-              console.log('✓ Screenshot saved: test-results/calendar-join-error.png');
+              console.log('  ✓ Screenshot saved: test-results/calendar-join-error.png');
               // Don't throw - allow test to continue
             }
           }
