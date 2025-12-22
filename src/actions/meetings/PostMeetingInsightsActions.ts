@@ -1,5 +1,5 @@
 import { Page } from '@playwright/test';
-import { PostMeetingInsightsPage } from '../../../pages/meetings/postMeetingInsightsPage';
+import { PostMeetingInsightsPage } from '../../pages/meetings/postMeetingInsightsPage';
 
 /**
  * Actions for Post Meeting Insights interactions

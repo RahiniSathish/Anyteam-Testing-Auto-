@@ -453,5 +453,75 @@ export class AnyteamCalendarActions {
     
     return meetPage;
   }
+
+  /**
+   * Click on Team Standup Meeting item in calendar
+   */
+  async clickTeamStandupMeetingItem(): Promise<void> {
+    await this.anyteamCalendarPage.clickTeamStandupMeetingItem();
+  }
+
+  /**
+   * Check if Team Standup Meeting item is visible
+   */
+  async isTeamStandupMeetingItemVisible(): Promise<boolean> {
+    return await this.anyteamCalendarPage.isTeamStandupMeetingItemVisible();
+  }
+
+  /**
+   * Click the join arrow (chevron-down icon)
+   */
+  async clickJoinArrow(): Promise<void> {
+    await this.anyteamCalendarPage.clickJoinArrow();
+  }
+
+  /**
+   * Check if join arrow is visible
+   */
+  async isJoinArrowVisible(): Promise<boolean> {
+    return await this.anyteamCalendarPage.isJoinArrowVisible();
+  }
+
+  /**
+   * Click the Join button (after join arrow is clicked)
+   */
+  async clickJoinButton(): Promise<void> {
+    await this.anyteamCalendarPage.clickJoinButton();
+  }
+
+  /**
+   * Check if Join button is visible
+   */
+  async isJoinButtonVisible(): Promise<boolean> {
+    return await this.anyteamCalendarPage.isJoinButtonVisible();
+  }
+
+  /**
+   * Click meeting item by time slot (e.g., "14:15 - 15:15")
+   */
+  async clickMeetingItemByTime(timeSlot: string): Promise<void> {
+    await this.anyteamCalendarPage.clickMeetingItemByTime(timeSlot);
+  }
+
+  /**
+   * Check if meeting item with specific time slot is visible
+   */
+  async isMeetingItemByTimeVisible(timeSlot: string): Promise<boolean> {
+    return await this.anyteamCalendarPage.isMeetingItemByTimeVisible(timeSlot);
+  }
+
+  /**
+   * Click the first available meeting item in the calendar
+   */
+  async clickFirstAvailableMeetingItem(): Promise<void> {
+    await this.anyteamCalendarPage.clickFirstAvailableMeetingItem();
+  }
+
+  /**
+   * Check if any meeting item is visible
+   */
+  async isAnyMeetingItemVisible(): Promise<boolean> {
+    return await this.anyteamCalendarPage.isAnyMeetingItemVisible();
+  }
 }
 

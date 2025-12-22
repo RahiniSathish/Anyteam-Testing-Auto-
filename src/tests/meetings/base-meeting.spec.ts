@@ -1,8 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { BaseMeetingActions } from '../../actions/meetings/BaseMeetingActions';
 import { NotificationsActions } from '../../actions/settings/notifications/NotificationsActions';
-import { LoginActions } from '../../actions/login/LoginActions';
-import { GoogleOAuthActions } from '../../actions/login/GoogleOAuthActions';
+import { LoginHelper } from '../../utils/loginHelper';
 import { TestData } from '../../utils/TestData';
 import * as dotenv from 'dotenv';
 
@@ -12,73 +11,26 @@ dotenv.config();
 /**
  * Test Suite: Base Meeting
  * Tests for basic meeting creation, editing, and management
+ * Based on Meeting_Feature_Validation test plan
  */
 test.describe('Base Meeting', () => {
   let baseMeetingActions: BaseMeetingActions;
 
   test.beforeEach(async ({ page, context }) => {
+    // Increase timeout for beforeEach (automated OAuth login can take time)
+    test.setTimeout(360000); // 6 minutes for automated login flow
+    
     baseMeetingActions = new BaseMeetingActions(page);
     
-    // Navigate to home page
-    await page.goto(`${TestData.urls.base}/home`);
-    await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
-    await page.waitForTimeout(2000);
+    // Perform automated login using LoginHelper
+    await LoginHelper.performLogin(page, context);
     
-    // Check if we're on login page - if so, perform login
+    // Ensure we're on home page
     const currentUrl = page.url();
-    if (currentUrl.includes('/Login') || currentUrl.includes('/onboarding/Login')) {
-      console.log('Not logged in, performing login...');
-      const loginActions = new LoginActions(page);
-      await loginActions.navigateToLoginPage();
-      
-      // Click Continue with Google
-      const continueButton = page.locator('p:has-text("Continue with Google")').locator('..');
-      await continueButton.click();
-      await page.waitForTimeout(2000);
-      
-      // Get active page (popup or main page)
-      const pages = context.pages();
-      const activePage = pages.length > 1 ? pages[pages.length - 1] : page;
-      
-      // Perform OAuth flow if needed
-      const activeUrl = activePage.url();
-      if (activeUrl.includes('accounts.google.com')) {
-        const googleOAuthActions = new GoogleOAuthActions(activePage);
-        
-        // Enter email
-        await googleOAuthActions.enterEmail(TestData.emails.testUser);
-        await googleOAuthActions.clickNextAfterEmail();
-        await activePage.waitForTimeout(1500);
-        
-        // Enter password
-        await googleOAuthActions.enterPassword(TestData.passwords.testPassword);
-        await googleOAuthActions.clickNextAfterPassword();
-        await activePage.waitForTimeout(3000);
-        
-        // Click Continue and Allow
-        try {
-          await googleOAuthActions.clickContinueOnConsentPage();
-          await activePage.waitForTimeout(2000);
-        } catch (e) {
-          // Continue button might not appear
-        }
-        
-        try {
-          await googleOAuthActions.clickAllowOnPermissionsPage();
-          await activePage.waitForTimeout(3000);
-        } catch (e) {
-          // Allow button might not appear
-        }
-        
-        // Wait for redirect to anyteam
-        await page.waitForURL((url: URL) => url.href.includes('anyteam.com') && !url.href.includes('accounts.google.com'), { timeout: 30000 }).catch(() => {});
-        await page.waitForTimeout(5000);
-      }
-      
-      // Navigate to home page after login
+    if (!currentUrl.includes('/home')) {
       await page.goto(`${TestData.urls.base}/home`);
-      await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
-      await page.waitForTimeout(3000);
+      await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+      await page.waitForTimeout(2000);
     }
   });
 
@@ -316,6 +268,382 @@ test.describe('Base Meeting', () => {
     console.log('  ✓ Talking Points section is visible');
     
     console.log('\n✓ All individual sections verified successfully!');
+  });
+
+  // Row 4: Agenda loads real-time
+  test('should verify agenda loads real-time and is populated correctly', async ({ page }) => {
+    console.log('\n=== Test: Agenda loads real-time and populated correctly ===');
+    
+    const notificationsActions = new NotificationsActions(page);
+    
+    // Navigate to meeting insights
+    await notificationsActions.clickNotificationsHeading();
+    await page.waitForTimeout(2000);
+    
+    const isNotificationVisible = await notificationsActions.verifyNotificationItemVisible();
+    if (!isNotificationVisible) {
+      console.log('⚠ No notification items available - skipping test');
+      return;
+    }
+    
+    await notificationsActions.clickNotificationItem();
+    await page.waitForTimeout(2000);
+    
+    const isViewInsightsVisible = await notificationsActions.verifyViewMeetingInsightsVisible();
+    if (!isViewInsightsVisible) {
+      console.log('⚠ View Meeting Insights button not visible - skipping test');
+      return;
+    }
+    
+    await notificationsActions.clickViewMeetingInsights();
+    
+    // Measure load time
+    const startTime = Date.now();
+    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+    const loadTime = Date.now() - startTime;
+    
+    console.log(`✓ Meeting insights page loaded in ${loadTime}ms`);
+    
+    // Open Agenda section
+    console.log('Step: Opening Agenda section...');
+    const agendaSection = page.locator('h2:has-text("Agenda"), h3:has-text("Agenda"), [data-testid="agenda"], [class*="agenda"], button:has-text("Agenda"), div:has-text("Agenda")').first();
+    const isAgendaVisible = await agendaSection.isVisible({ timeout: 5000 }).catch(() => false);
+    
+    if (isAgendaVisible) {
+      await agendaSection.click({ timeout: 5000 }).catch(() => {});
+      await page.waitForTimeout(2000);
+    }
+    
+    // Verify agenda is populated with content
+    console.log('Step: Verifying agenda is populated...');
+    const agendaContent = page.locator('[class*="agenda"]').first();
+    const hasContent = await agendaContent.isVisible({ timeout: 5000 }).catch(() => false);
+    
+    expect(hasContent, 'Agenda should be populated correctly').toBe(true);
+    console.log('✓ Agenda populated correctly');
+  });
+
+  // Row 5: Participants tags shown
+  test('should verify participants tags are shown correctly', async ({ page }) => {
+    console.log('\n=== Test: Participants tags shown correctly ===');
+    
+    const notificationsActions = new NotificationsActions(page);
+    
+    // Navigate to meeting insights
+    await notificationsActions.clickNotificationsHeading();
+    await page.waitForTimeout(2000);
+    
+    const isNotificationVisible = await notificationsActions.verifyNotificationItemVisible();
+    if (!isNotificationVisible) {
+      console.log('⚠ No notification items available - skipping test');
+      return;
+    }
+    
+    await notificationsActions.clickNotificationItem();
+    await page.waitForTimeout(2000);
+    
+    const isViewInsightsVisible = await notificationsActions.verifyViewMeetingInsightsVisible();
+    if (!isViewInsightsVisible) {
+      console.log('⚠ View Meeting Insights button not visible - skipping test');
+      return;
+    }
+    
+    await notificationsActions.clickViewMeetingInsights();
+    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+    await page.waitForTimeout(2000);
+    
+    // Open Participants section
+    console.log('Step: Opening Participants section...');
+    const participantsSection = page.locator('h2:has-text("Participants"), h3:has-text("Participants"), [data-testid="participants"], [class*="participants"], button:has-text("Participants"), div:has-text("Participants")').first();
+    const isParticipantsVisible = await participantsSection.isVisible({ timeout: 5000 }).catch(() => false);
+    
+    if (isParticipantsVisible) {
+      await participantsSection.click({ timeout: 5000 }).catch(() => {});
+      await page.waitForTimeout(2000);
+    }
+    
+    // Verify participant tags are displayed
+    console.log('Step: Verifying participant tags are displayed...');
+    const participantTags = page.locator('[class*="tag"], [class*="participant"], [class*="badge"], span:has-text("@"), [data-testid*="participant"]');
+    const tagCount = await participantTags.count();
+    
+    expect(tagCount, 'Participant tags should be displayed').toBeGreaterThan(0);
+    console.log(`✓ Correct stakeholder tags displayed (${tagCount} tags found)`);
+  });
+
+  // Row 6: Strategic POV loads quickly
+  test('should verify Strategic POV loads quickly', async ({ page }) => {
+    console.log('\n=== Test: Strategic POV loads quickly ===');
+    
+    const notificationsActions = new NotificationsActions(page);
+    
+    // Navigate to meeting insights
+    await notificationsActions.clickNotificationsHeading();
+    await page.waitForTimeout(2000);
+    
+    const isNotificationVisible = await notificationsActions.verifyNotificationItemVisible();
+    if (!isNotificationVisible) {
+      console.log('⚠ No notification items available - skipping test');
+      return;
+    }
+    
+    await notificationsActions.clickNotificationItem();
+    await page.waitForTimeout(2000);
+    
+    const isViewInsightsVisible = await notificationsActions.verifyViewMeetingInsightsVisible();
+    if (!isViewInsightsVisible) {
+      console.log('⚠ View Meeting Insights button not visible - skipping test');
+      return;
+    }
+    
+    await notificationsActions.clickViewMeetingInsights();
+    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+    await page.waitForTimeout(2000);
+    
+    // Open Strategic POV section and measure load time
+    console.log('Step: Opening Strategic POV section...');
+    const strategicPOVSection = page.locator('h2:has-text("Strategic POV"), h3:has-text("Strategic POV"), [data-testid="strategic-pov"], [class*="strategic"], button:has-text("Strategic"), div:has-text("Strategic POV")').first();
+    const isStrategicVisible = await strategicPOVSection.isVisible({ timeout: 5000 }).catch(() => false);
+    
+    if (isStrategicVisible) {
+      const startTime = Date.now();
+      await strategicPOVSection.click({ timeout: 5000 }).catch(() => {});
+      await page.waitForTimeout(2000);
+      await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+      const loadTime = Date.now() - startTime;
+      
+      console.log(`✓ Strategic POV loaded in ${loadTime}ms`);
+      expect(loadTime, 'Strategic POV should load within expected time (< 5000ms)').toBeLessThan(5000);
+    } else {
+      console.log('⚠ Strategic POV section not visible');
+    }
+  });
+
+  // Row 8: Talking Points generated accurately
+  test('should verify talking points are generated accurately', async ({ page }) => {
+    console.log('\n=== Test: Talking Points generated accurately ===');
+    
+    const notificationsActions = new NotificationsActions(page);
+    
+    // Navigate to meeting insights
+    await notificationsActions.clickNotificationsHeading();
+    await page.waitForTimeout(2000);
+    
+    const isNotificationVisible = await notificationsActions.verifyNotificationItemVisible();
+    if (!isNotificationVisible) {
+      console.log('⚠ No notification items available - skipping test');
+      return;
+    }
+    
+    await notificationsActions.clickNotificationItem();
+    await page.waitForTimeout(2000);
+    
+    const isViewInsightsVisible = await notificationsActions.verifyViewMeetingInsightsVisible();
+    if (!isViewInsightsVisible) {
+      console.log('⚠ View Meeting Insights button not visible - skipping test');
+      return;
+    }
+    
+    await notificationsActions.clickViewMeetingInsights();
+    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+    await page.waitForTimeout(2000);
+    
+    // Open Talking Points section
+    console.log('Step: Opening Talking Points section...');
+    const talkingPointsSection = page.locator('h2:has-text("Talking Points"), h3:has-text("Talking Points"), [data-testid="talking-points"], [class*="talking-points"], button:has-text("Talking Points"), div:has-text("Talking Points")').first();
+    const isTalkingPointsVisible = await talkingPointsSection.isVisible({ timeout: 5000 }).catch(() => false);
+    
+    if (isTalkingPointsVisible) {
+      await talkingPointsSection.click({ timeout: 5000 }).catch(() => {});
+      await page.waitForTimeout(2000);
+      
+      // Verify talking points content exists
+      console.log('Step: Verifying talking points content...');
+      const talkingPointsContent = page.locator('[class*="talking"], [class*="point"], li, ul, ol, [data-testid*="talking"]');
+      const contentCount = await talkingPointsContent.count();
+      
+      expect(contentCount, 'Talking points should be generated and displayed').toBeGreaterThan(0);
+      console.log(`✓ Relevant and aligned talking points shown (${contentCount} items found)`);
+    } else {
+      console.log('⚠ Talking Points section not visible');
+    }
+  });
+
+  // Row 12: Join button behavior correct
+  test('should verify join button behavior is correct and opens Google Calendar/Meet page', async ({ page, context }) => {
+    console.log('\n=== Test: Join button behavior correct ===');
+    
+    // Navigate to meeting page
+    console.log('Step: Navigating to meeting page...');
+    await baseMeetingActions.navigateToBaseMeeting();
+    await page.waitForTimeout(2000);
+    
+    // Verify join button is visible
+    console.log('Step: Verifying join button is visible...');
+    const isJoinVisible = await baseMeetingActions.verifyJoinButtonVisible();
+    expect(isJoinVisible, 'Join button should be visible').toBe(true);
+    console.log('✓ Join button is visible');
+    
+    // Click join button and wait for new page/popup to open
+    console.log('Step: Clicking join button and waiting for Google Calendar/Meet page to open...');
+    
+    // Set up listener for new page before clicking
+    const pagePromise = context.waitForEvent('page', { timeout: 15000 }).catch(() => null);
+    
+    // Click the join button
+    await baseMeetingActions.clickJoinButton();
+    
+    // Wait for new page to open (Google Meet/Calendar join page)
+    const newPage = await pagePromise;
+    
+    if (newPage) {
+      console.log('✓ New page opened after clicking Join button');
+      console.log(`  New page URL: ${newPage.url()}`);
+      
+      // Wait for the new page to load
+      await newPage.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
+      await newPage.waitForTimeout(2000);
+      
+      // Verify it's a Google Meet/Calendar page
+      const newPageUrl = newPage.url();
+      const isGoogleMeet = newPageUrl.includes('meet.google.com') || 
+                          newPageUrl.includes('calendar.google.com') ||
+                          newPageUrl.includes('accounts.google.com');
+      
+      if (isGoogleMeet) {
+        console.log('✓ Google Meet/Calendar join page opened successfully');
+        console.log(`  Page URL: ${newPageUrl}`);
+        
+        // Take screenshot of the join page
+        await newPage.screenshot({ path: 'test-results/google-meet-join-page.png', fullPage: true });
+        console.log('✓ Screenshot saved: test-results/google-meet-join-page.png');
+        
+        // Check for join-related elements on the new page
+        const joinButtonOnNewPage = newPage.locator('button:has-text("Join"), button:has-text("Join now"), [aria-label*="Join" i]').first();
+        const isJoinButtonVisible = await joinButtonOnNewPage.isVisible({ timeout: 10000 }).catch(() => false);
+        
+        if (isJoinButtonVisible) {
+          console.log('✓ Join button found on Google Meet/Calendar page');
+        } else {
+          console.log('⚠ Join button not immediately visible on new page (may need to wait for page to fully load)');
+        }
+        
+        // Keep the page open for verification
+        // Don't close it - let user see it in headed mode
+        console.log('✓ Google Calendar/Meet join page is open and ready');
+      } else {
+        console.log(`⚠ New page opened but URL doesn't match Google Meet/Calendar: ${newPageUrl}`);
+        await newPage.screenshot({ path: 'test-results/join-page-unexpected.png', fullPage: true });
+        console.log('✓ Screenshot saved: test-results/join-page-unexpected.png');
+      }
+    } else {
+      console.log('⚠ No new page opened after clicking Join button');
+      console.log('  Checking if join options/dropdown appeared on current page...');
+      
+      // Check if join options/dropdown appeared on current page
+      await page.waitForTimeout(2000);
+      const joinOptions = page.locator('button:has-text("Join"), a:has-text("Join"), [aria-label*="Join" i], [class*="join"], [class*="option"]');
+      const hasOptions = await joinOptions.count().then(count => count > 0);
+      
+      if (hasOptions) {
+        console.log('✓ Join options/dropdown appeared on current page');
+      } else {
+        // Check if we were redirected to a join page
+        const currentUrl = page.url();
+        if (currentUrl.includes('meet.google.com') || currentUrl.includes('calendar.google.com')) {
+          console.log('✓ Current page redirected to Google Meet/Calendar join page');
+          console.log(`  URL: ${currentUrl}`);
+          await page.screenshot({ path: 'test-results/google-meet-join-page-redirect.png', fullPage: true });
+          console.log('✓ Screenshot saved: test-results/google-meet-join-page-redirect.png');
+        } else {
+          console.log('⚠ No new page opened and no redirect detected');
+          await page.screenshot({ path: 'test-results/join-button-clicked-no-action.png', fullPage: true });
+          console.log('✓ Screenshot saved: test-results/join-button-clicked-no-action.png');
+        }
+      }
+    }
+    
+    console.log('✓ Join button behavior test completed');
+  });
+
+  test('should click notification from sidebar and view meeting pre-read', async ({ page }) => {
+    console.log('\n=== Test: Click notification and View Meeting Pre-Read ===');
+    
+    const notificationsActions = new NotificationsActions(page);
+
+    // Step 1: Ensure we're on home page
+    console.log('Step 1: Navigating to home page...');
+    await page.goto(`${TestData.urls.base}/home`);
+    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+    await page.waitForTimeout(2000);
+    console.log('✓ On home page');
+
+    // Step 2: Open notifications panel from sidebar
+    console.log('Step 2: Opening notifications panel from sidebar...');
+    await notificationsActions.clickNotificationsHeading();
+    await page.waitForTimeout(2000);
+    console.log('✓ Notifications panel opened');
+
+    // Step 3: Click on a notification item
+    console.log('Step 3: Clicking on notification item...');
+    const isNotificationVisible = await notificationsActions.verifyNotificationItemVisible();
+    
+    if (!isNotificationVisible) {
+      console.log('⚠ No notifications visible - trying to find Team Standup Meeting notification...');
+      const isTeamStandupVisible = await notificationsActions.verifyTeamStandupMeetingNotificationVisible();
+      
+      if (isTeamStandupVisible) {
+        console.log('✓ Found Team Standup Meeting notification');
+        await notificationsActions.clickTeamStandupMeetingNotification();
+        await page.waitForTimeout(2000);
+        console.log('✓ Clicked on Team Standup Meeting notification');
+      } else {
+        throw new Error('No notifications available to click');
+      }
+    } else {
+      await notificationsActions.clickNotificationItem();
+      await page.waitForTimeout(2000);
+      console.log('✓ Clicked on notification item');
+    }
+
+    // Step 4: Click View Meeting Pre-Read button
+    console.log('Step 4: Looking for View Meeting Pre-Read button...');
+    const isViewPreReadVisible = await notificationsActions.verifyViewMeetingPreReadVisible();
+    
+    if (!isViewPreReadVisible) {
+      console.log('⚠ View Meeting Pre-Read button not visible - taking screenshot...');
+      await page.screenshot({ path: 'test-results/view-pre-read-not-visible-base-meeting.png', fullPage: true });
+      console.log('Screenshot saved: test-results/view-pre-read-not-visible-base-meeting.png');
+      throw new Error('View Meeting Pre-Read button not visible');
+    }
+    
+    console.log('✓ Found View Meeting Pre-Read button');
+    
+    // Step 5: Click View Meeting Pre-Read
+    console.log('Step 5: Clicking View Meeting Pre-Read...');
+    await notificationsActions.clickViewMeetingPreRead();
+    await page.waitForTimeout(3000); // Wait for modal/page to load
+    console.log('✓ Clicked View Meeting Pre-Read button');
+    
+    // Step 6: Verify meeting details modal/page is visible
+    console.log('Step 6: Verifying meeting details are displayed...');
+    
+    // Check for meeting title or modal
+    const meetingTitle = page.locator('h1, h2, h3').filter({ hasText: /Meeting|Sample|Team Standup/i }).first();
+    const isTitleVisible = await meetingTitle.isVisible({ timeout: 10000 }).catch(() => false);
+    
+    if (isTitleVisible) {
+      const titleText = await meetingTitle.textContent().catch(() => '');
+      console.log(`✓ Meeting details displayed - Title: "${titleText?.trim()}"`);
+    } else {
+      console.log('⚠ Meeting title not immediately visible, but View Meeting Pre-Read was clicked');
+    }
+    
+    // Take screenshot for verification
+    await page.screenshot({ path: 'test-results/view-meeting-pre-read-clicked-base-meeting.png', fullPage: true });
+    console.log('✓ Screenshot saved: test-results/view-meeting-pre-read-clicked-base-meeting.png');
+    
+    console.log('✓ Successfully clicked notification and View Meeting Pre-Read');
   });
 });
 

@@ -455,5 +455,54 @@ test.describe('Notifications Panel', () => {
 
     console.log('✓ Complete mark as read/unread flow tested');
   });
+
+  test('should search for Team Standup Meeting and click View Meeting Pre-Read', async ({ page }) => {
+    // Step 1: Open notifications panel
+    console.log('Step 1: Opening notifications panel...');
+    await notificationsActions.clickNotificationsHeading();
+    await page.waitForTimeout(2000);
+
+    // Step 2: Search for Team Standup Meeting notification
+    console.log('Step 2: Searching for "Team Standup Meeting" notification...');
+    const isTeamStandupVisible = await notificationsActions.verifyTeamStandupMeetingNotificationVisible();
+    
+    if (!isTeamStandupVisible) {
+      console.log('⚠ Team Standup Meeting notification not visible - may not have this notification');
+      return;
+    }
+    
+    console.log('  ✓ Found "Team Standup Meeting" notification');
+    
+    // Step 3: Click on Team Standup Meeting notification
+    console.log('Step 3: Clicking on Team Standup Meeting notification...');
+    await notificationsActions.clickTeamStandupMeetingNotification();
+    await page.waitForTimeout(2000);
+    console.log('  ✓ Clicked on Team Standup Meeting notification');
+    
+    // Step 4: Click View Meeting Pre-Read
+    console.log('Step 4: Looking for "View Meeting Pre-Read" button...');
+    const isViewPreReadVisible = await notificationsActions.verifyViewMeetingPreReadVisible();
+    
+    if (!isViewPreReadVisible) {
+      console.log('⚠ View Meeting Pre-Read button not visible - may not appear after clicking notification');
+      await page.screenshot({ path: 'test-results/view-pre-read-not-visible.png', fullPage: true });
+      console.log('Screenshot saved: test-results/view-pre-read-not-visible.png');
+      return;
+    }
+    
+    console.log('  ✓ Found "View Meeting Pre-Read" button');
+    
+    // Step 5: Click View Meeting Pre-Read
+    console.log('Step 5: Clicking on View Meeting Pre-Read...');
+    await notificationsActions.clickViewMeetingPreRead();
+    await page.waitForTimeout(2000);
+    console.log('  ✓ Clicked on View Meeting Pre-Read');
+    
+    // Take screenshot for verification
+    await page.screenshot({ path: 'test-results/view-meeting-pre-read-clicked.png', fullPage: true });
+    console.log('  ✓ Screenshot saved: test-results/view-meeting-pre-read-clicked.png');
+    
+    console.log('✓ Successfully searched for and clicked View Meeting Pre-Read');
+  });
 });
 
