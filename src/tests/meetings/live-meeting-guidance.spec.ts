@@ -1,6 +1,7 @@
 import { test, expect, Page } from '@playwright/test';
 import { LiveMeetingGuidanceActions } from '../../actions/meetings/LiveMeetingGuidanceActions';
 import { LiveMeetingActions } from '../../actions/meetings/LiveMeetingActions';
+import { AnyteamCalendarActions } from '../../actions/calendar/AnyteamCalendarActions';
 import { LoginHelper } from '../../utils/loginHelper';
 import { TestData } from '../../utils/TestData';
 import * as dotenv from 'dotenv';
@@ -121,56 +122,156 @@ test.describe('Live Meeting Guidance', () => {
     
     console.log('\n=== Test: Join button opens multiple pages (Google Meet/Calendar) ===');
     
-    // Step 1: Navigate to home page to access calendar or meeting
+    // Step 1: Navigate to home page
     console.log('Step 1: Navigating to home page...');
     await page.goto(`${TestData.urls.base}/home`);
     await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
     await page.waitForTimeout(2000);
     console.log('✓ Navigated to home page');
+
+    // Step 2: Click calendar icon (schedule icon)
+    console.log('Step 2: Clicking calendar icon (schedule icon)...');
+    const calendarActions = new AnyteamCalendarActions(page);
+    await calendarActions.clickCalendarIcon();
+    await page.waitForTimeout(2000);
+    console.log('✓ Calendar icon clicked');
+
+    // Step 3: Find and click meeting item (try multiple approaches)
+    console.log('Step 3: Looking for meeting item...');
+    let meetingClicked = false;
     
-    // Step 2: Look for join button in the current page (could be in meeting details, calendar, or notifications)
-    console.log('Step 2: Looking for Join button on the page...');
+    // Try 1: Look for meeting with time "14:15 - 15:15" (sample meeting)
+    const sampleMeetingTime = "14:15 - 15:15";
+    console.log(`  Trying to find meeting with time: ${sampleMeetingTime}...`);
+    const isSampleMeetingVisible = await calendarActions.isMeetingItemByTimeVisible(sampleMeetingTime);
     
-    // Try multiple selectors to find join button
+    if (isSampleMeetingVisible) {
+      console.log(`  ✓ Found meeting with time: ${sampleMeetingTime}`);
+      await calendarActions.clickMeetingItemByTime(sampleMeetingTime);
+      await page.waitForTimeout(2000);
+      console.log('✓ Clicked on meeting item');
+      meetingClicked = true;
+    } else {
+      console.log(`  ⚠ Meeting with time ${sampleMeetingTime} not found, trying Team Standup Meeting...`);
+      
+      // Try 2: Look for "Team Standup Meeting"
+      const isTeamStandupVisible = await calendarActions.isTeamStandupMeetingItemVisible();
+      if (isTeamStandupVisible) {
+        console.log('  ✓ Found Team Standup Meeting item');
+        await calendarActions.clickTeamStandupMeetingItem();
+        await page.waitForTimeout(2000);
+        console.log('✓ Clicked on Team Standup Meeting item');
+        meetingClicked = true;
+      } else {
+        console.log('  ⚠ Team Standup Meeting not found, trying first available meeting...');
+        
+        // Try 3: Click first available meeting item
+        const isAnyMeetingVisible = await calendarActions.isAnyMeetingItemVisible();
+        if (isAnyMeetingVisible) {
+          console.log('  ✓ Found available meeting item');
+          await calendarActions.clickFirstAvailableMeetingItem();
+          await page.waitForTimeout(2000);
+          console.log('✓ Clicked on first available meeting item');
+          meetingClicked = true;
+        }
+      }
+    }
+    
+    if (!meetingClicked) {
+      console.log('⚠ No meeting items found in calendar');
+      console.log('  Taking screenshot for debugging...');
+      await page.screenshot({ path: 'test-results/live-meeting-guidance-meeting-item-not-visible.png', fullPage: true });
+      console.log('  Screenshot saved: test-results/live-meeting-guidance-meeting-item-not-visible.png');
+      return;
+    }
+
+    // Step 4: Wait for Join button to appear after clicking meeting item
+    console.log('Step 4: Looking for Join button (appears directly below meeting item)...');
+    
+    // Wait a moment for the Join button to appear after clicking the meeting item
+    await page.waitForTimeout(3000);
+    
+    // Scroll to make sure the Join button is visible
+    await page.evaluate(() => {
+      (globalThis as any).window.scrollBy(0, 150);
+    });
+    await page.waitForTimeout(1000);
+    
+    // Take screenshot to see current state
+    await page.screenshot({ path: 'test-results/live-meeting-guidance-before-join-button-search.png', fullPage: true });
+    console.log('  Screenshot saved: test-results/live-meeting-guidance-before-join-button-search.png');
+    
+    // Step 5: Find and click Join button with comprehensive selectors
+    console.log('Step 5: Looking for and clicking Join button...');
+    
+    let joinButton = null;
+    let joinButtonFound = false;
+    const maxRetries = 5;
+    
+    // Build list of selectors to try - including the exact selector from user
     const joinButtonSelectors = [
+      // Exact match with all classes
+      'button[type="button"][data-state="closed"].text-white.font-medium.rounded-l-md.h-8.px-3.text-xs.cursor-pointer:has-text("Join")',
+      // With data-state="closed"
+      'button[type="button"][data-state="closed"].text-white.font-medium.rounded-l-md:has-text("Join")',
+      'button[type="button"][data-state="closed"]:has-text("Join")',
+      // Class combinations
+      'button.text-white.font-medium.rounded-l-md.h-8.px-3:has-text("Join")',
+      'button.text-white.font-medium.rounded-l-md[data-state="closed"]:has-text("Join")',
+      'button.text-white.font-medium.rounded-l-md:has-text("Join")',
+      'button.h-8.px-3.text-xs:has-text("Join")',
+      // Simple selectors
+      'button[type="button"]:has-text("Join")',
       'button:has-text("Join")',
       'button:has-text("Join Meeting")',
       'a:has-text("Join")',
       '[aria-label*="Join" i]',
-      'button:has-text("Join with Google Meet")',
-      'button[type="button"]:has-text("Join")',
     ];
     
-    let joinButton = null;
-    let joinButtonFound = false;
-    
-    for (const selector of joinButtonSelectors) {
-      try {
-        const button = page.locator(selector).first();
-        const isVisible = await button.isVisible({ timeout: 3000 }).catch(() => false);
-        if (isVisible) {
-          joinButton = button;
-          joinButtonFound = true;
-          console.log(`✓ Found Join button with selector: ${selector}`);
-          break;
+    for (let i = 0; i < maxRetries; i++) {
+      for (const selector of joinButtonSelectors) {
+        try {
+          const button = page.locator(selector).first();
+          const count = await button.count();
+          const isVisible = await button.isVisible({ timeout: 1500 }).catch(() => false);
+          
+          if (isVisible && count > 0) {
+            // Get button text to verify
+            const buttonText = await button.textContent().catch(() => '');
+            if (buttonText && buttonText.trim().toLowerCase().includes('join')) {
+              console.log(`  ✓ Found Join button on attempt ${i + 1} with selector: ${selector}`);
+              console.log(`    Button text: "${buttonText.trim()}"`);
+              joinButton = button;
+              joinButtonFound = true;
+              break;
+            }
+          }
+        } catch (e) {
+          continue;
         }
-      } catch (e) {
-        continue;
       }
+      
+      if (joinButtonFound) {
+        break;
+      }
+      
+      console.log(`  Attempt ${i + 1}/${maxRetries}: Join button not visible yet, scrolling and waiting...`);
+      await page.evaluate(() => {
+        (globalThis as any).window.scrollBy(0, 100);
+      });
+      await page.waitForTimeout(2000);
     }
     
     if (!joinButtonFound || !joinButton) {
-      console.log('⚠ Join button not found on current page - trying to navigate to meeting or calendar...');
-      
-      // Try navigating to a meeting or opening calendar
-      // This is a fallback - in real scenario, you'd navigate to where the join button is
-      console.log('⚠ Join button not available in current context');
-      console.log('  Note: Join button may need to be accessed from calendar or meeting details');
-      return; // Skip this test if join button is not available
+      console.log('⚠ Join button not found after multiple attempts');
+      console.log('  Taking screenshot for debugging...');
+      await page.screenshot({ path: 'test-results/live-meeting-guidance-join-button-not-found.png', fullPage: true });
+      console.log('  Screenshot saved: test-results/live-meeting-guidance-join-button-not-found.png');
+      return;
     }
     
-    // Step 3: Click join button and wait for multiple pages to open
-    console.log('Step 3: Clicking Join button and waiting for Google Meet/Calendar pages to open...');
+    // Step 6: Click join button and wait for multiple pages to open
+    console.log('Step 6: Clicking Join button and waiting for Google Meet/Calendar pages to open...');
     
     try {
       // Get initial page count
@@ -185,8 +286,14 @@ test.describe('Live Meeting Guidance', () => {
       await page.waitForTimeout(500);
       
       // Click the join button
-      await joinButton.click({ timeout: 5000 });
-      console.log('  ✓ Join button clicked');
+      try {
+        await joinButton.click({ timeout: 5000 });
+        console.log('  ✓ Join button clicked successfully');
+      } catch (clickError) {
+        console.log('  ⚠ Normal click failed, trying force click...');
+        await joinButton.click({ force: true, timeout: 5000 });
+        console.log('  ✓ Join button clicked (force) successfully');
+      }
       
       // Wait a bit for pages to potentially open
       await page.waitForTimeout(3000);
