@@ -1,5 +1,5 @@
 import { Page } from '@playwright/test';
-import { LiveMeetingGuidancePage } from '../../../pages/meetings/liveMeetingGuidancePage';
+import { LiveMeetingGuidancePage } from '../../pages/meetings/liveMeetingGuidancePage';
 
 /**
  * Actions for Live Meeting Guidance interactions

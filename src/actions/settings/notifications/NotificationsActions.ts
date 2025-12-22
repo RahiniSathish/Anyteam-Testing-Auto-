@@ -48,6 +48,34 @@ export class NotificationsActions {
   }
 
   /**
+   * Verify Team Standup Meeting notification is visible
+   */
+  async verifyTeamStandupMeetingNotificationVisible(): Promise<boolean> {
+    return await this.notificationsPage.isTeamStandupMeetingNotificationVisible();
+  }
+
+  /**
+   * Click on Team Standup Meeting notification
+   */
+  async clickTeamStandupMeetingNotification(): Promise<void> {
+    await this.notificationsPage.clickTeamStandupMeetingNotification();
+  }
+
+  /**
+   * Verify View Meeting Pre-Read button is visible
+   */
+  async verifyViewMeetingPreReadVisible(): Promise<boolean> {
+    return await this.notificationsPage.isViewMeetingPreReadVisible();
+  }
+
+  /**
+   * Click on View Meeting Pre-Read button
+   */
+  async clickViewMeetingPreRead(): Promise<void> {
+    await this.notificationsPage.clickViewMeetingPreRead();
+  }
+
+  /**
    * Click on a notification item (meeting notification)
    */
   async clickNotificationItem(): Promise<void> {

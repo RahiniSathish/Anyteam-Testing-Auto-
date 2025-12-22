@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { PostMeetingInsightsActions } from '../../actions/meetings/PostMeetingInsightsActions';
-import { LoginActions } from '../../actions/login/LoginActions';
-import { GoogleOAuthActions } from '../../actions/login/GoogleOAuthActions';
+import { LoginHelper } from '../../utils/loginHelper';
 import { TestData } from '../../utils/TestData';
 import * as dotenv from 'dotenv';
 
@@ -18,67 +17,13 @@ test.describe('Post Meeting Insights', () => {
   test.beforeEach(async ({ page, context }) => {
     postMeetingInsightsActions = new PostMeetingInsightsActions(page);
     
+    // Perform login using LoginHelper
+    await LoginHelper.performLogin(page, context);
+    
     // Navigate to home page
     await page.goto(`${TestData.urls.base}/home`);
-    await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
+    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
     await page.waitForTimeout(2000);
-    
-    // Check if we're on login page - if so, perform login
-    const currentUrl = page.url();
-    if (currentUrl.includes('/Login') || currentUrl.includes('/onboarding/Login')) {
-      console.log('Not logged in, performing login...');
-      const loginActions = new LoginActions(page);
-      await loginActions.navigateToLoginPage();
-      
-      // Click Continue with Google
-      const continueButton = page.locator('p:has-text("Continue with Google")').locator('..');
-      await continueButton.click();
-      await page.waitForTimeout(2000);
-      
-      // Get active page (popup or main page)
-      const pages = context.pages();
-      const activePage = pages.length > 1 ? pages[pages.length - 1] : page;
-      
-      // Perform OAuth flow if needed
-      const activeUrl = activePage.url();
-      if (activeUrl.includes('accounts.google.com')) {
-        const googleOAuthActions = new GoogleOAuthActions(activePage);
-        
-        // Enter email
-        await googleOAuthActions.enterEmail(TestData.emails.testUser);
-        await googleOAuthActions.clickNextAfterEmail();
-        await activePage.waitForTimeout(1500);
-        
-        // Enter password
-        await googleOAuthActions.enterPassword(TestData.passwords.testPassword);
-        await googleOAuthActions.clickNextAfterPassword();
-        await activePage.waitForTimeout(3000);
-        
-        // Click Continue and Allow
-        try {
-          await googleOAuthActions.clickContinueOnConsentPage();
-          await activePage.waitForTimeout(2000);
-        } catch (e) {
-          // Continue button might not appear
-        }
-        
-        try {
-          await googleOAuthActions.clickAllowOnPermissionsPage();
-          await activePage.waitForTimeout(3000);
-        } catch (e) {
-          // Allow button might not appear
-        }
-        
-        // Wait for redirect to anyteam
-        await page.waitForURL((url: URL) => url.href.includes('anyteam.com') && !url.href.includes('accounts.google.com'), { timeout: 30000 }).catch(() => {});
-        await page.waitForTimeout(5000);
-      }
-      
-      // Navigate to home page after login
-      await page.goto(`${TestData.urls.base}/home`);
-      await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
-      await page.waitForTimeout(3000);
-    }
   });
 
   test('should verify insights are visible', async ({ page }) => {

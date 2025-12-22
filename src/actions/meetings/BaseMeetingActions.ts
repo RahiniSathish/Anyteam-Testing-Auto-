@@ -1,5 +1,5 @@
 import { Page } from '@playwright/test';
-import { BaseMeetingPage } from '../../../pages/meetings/baseMeetingPage';
+import { BaseMeetingPage } from '../../pages/meetings/baseMeetingPage';
 
 /**
  * Actions for Base Meeting interactions

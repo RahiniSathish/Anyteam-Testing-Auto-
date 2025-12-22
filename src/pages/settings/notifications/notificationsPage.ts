@@ -260,6 +260,109 @@ export class NotificationsPage {
   }
 
   /**
+   * Verify Team Standup Meeting notification is visible
+   * Scrolls the notification panel to find the notification
+   */
+  async isTeamStandupMeetingNotificationVisible(): Promise<boolean> {
+    try {
+      // First try without scrolling
+      const isVisible = await this.teamStandupMeetingNotification.isVisible({ timeout: 2000 }).catch(() => false);
+      if (isVisible) {
+        return true;
+      }
+      
+      // If not visible, try scrolling the notification panel
+      console.log('  Notification not immediately visible, scrolling to find it...');
+      await this.page.evaluate(() => {
+        const win = globalThis as any;
+        const notificationContainer = win.document.querySelector('[class*="notification"], div:has(h2:has-text("Notifications"))') || win.document.body;
+        notificationContainer.scrollBy(0, 300);
+      });
+      await this.page.waitForTimeout(500);
+      
+      // Check again after scrolling
+      return await this.teamStandupMeetingNotification.isVisible({ timeout: 5000 });
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Click on Team Standup Meeting notification
+   * Scrolls to find the notification first, then clicks it
+   */
+  async clickTeamStandupMeetingNotification(): Promise<void> {
+    // First, scroll the notifications panel to find the Team Standup Meeting notification
+    console.log('  Scrolling to find Team Standup Meeting notification...');
+    
+    // Scroll the notification panel to ensure we can see all notifications
+    const notificationPanel = this.page.locator('h2:has-text("Notifications")').locator('..').first();
+    await notificationPanel.scrollIntoViewIfNeeded().catch(() => {});
+    
+    // Try scrolling down in the notification list to find the Team Standup Meeting
+    await this.page.evaluate(() => {
+      const win = globalThis as any;
+      const notificationContainer = win.document.querySelector('[class*="notification"], div:has(h2:has-text("Notifications"))') || win.document.body;
+      notificationContainer.scrollBy(0, 300);
+    });
+    await this.page.waitForTimeout(500);
+    
+    // Wait for the notification to be visible
+    await this.teamStandupMeetingNotification.waitFor({ state: 'visible', timeout: 10000 });
+    
+    // Scroll the specific notification into view
+    await this.teamStandupMeetingNotification.scrollIntoViewIfNeeded();
+    await this.page.waitForTimeout(500);
+    
+    // Click on the notification
+    await this.teamStandupMeetingNotification.click({ timeout: 5000 });
+  }
+
+  /**
+   * Verify View Meeting Pre-Read button is visible
+   */
+  async isViewMeetingPreReadVisible(): Promise<boolean> {
+    try {
+      return await this.viewMeetingPreReadButton.isVisible({ timeout: 5000 });
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Click on View Meeting Pre-Read button
+   * Scrolls to find the button first, then clicks it
+   * The button is in: <div class="border-t border-t-zinc-100 py-2 my-3 flex flex-row items-center justify-between">
+   */
+  async clickViewMeetingPreRead(): Promise<void> {
+    // Scroll to ensure the button is visible
+    console.log('  Scrolling to find View Meeting Pre-Read button...');
+    
+    // Scroll the page to find the View Meeting Pre-Read button
+    await this.page.evaluate(() => {
+      const win = globalThis as any;
+      win.scrollBy(0, 200);
+    });
+    await this.page.waitForTimeout(500);
+    
+    // Wait for the button to be visible (using the parent div selector for better reliability)
+    await this.viewMeetingPreReadButton.waitFor({ state: 'visible', timeout: 10000 });
+    
+    // Scroll the button into view
+    await this.viewMeetingPreReadButton.scrollIntoViewIfNeeded();
+    await this.page.waitForTimeout(500);
+    
+    // Click on the button (the parent div or the span)
+    try {
+      await this.viewMeetingPreReadButton.click({ timeout: 5000 });
+    } catch (e) {
+      // If direct click fails, try force click
+      console.log('  Direct click failed, trying force click...');
+      await this.viewMeetingPreReadButton.click({ force: true, timeout: 5000 });
+    }
+  }
+
+  /**
    * Click on a notification item (meeting notification)
    * Looks for the notification div with cursor-pointer class
    */

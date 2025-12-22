@@ -1,65 +1,48 @@
-import { test, expect, Page, BrowserContext } from '@playwright/test';
-import { SettingsActions } from '../../../actions/settings/SettingsActions';
-import { LinkedInActions } from '../../../actions/settings/linkedin/LinkedInActions';
-import { LoginActions } from '../../../actions/login/LoginActions';
-import { GoogleOAuthActions } from '../../../actions/login/GoogleOAuthActions';
-import { TestData } from '../../../utils/TestData';
-import * as dotenv from 'dotenv';
-
-// Load environment variables from .env file
-dotenv.config();
+import { Page, BrowserContext } from '@playwright/test';
+import { LoginActions } from '../actions/login/LoginActions';
+import { GoogleOAuthActions } from '../actions/login/GoogleOAuthActions';
+import { TestData } from './TestData';
 
 /**
- * Test Suite: LinkedIn Page
- * Tests for the LinkedIn tab within the Settings page
- * Uses a single login session shared across all tests
+ * Shared login helper utility
+ * Provides reusable login functionality for all test files
+ * Uses automated Google OAuth login flow
  */
-test.describe.serial('LinkedIn Page', () => {
-  let sharedPage: Page;
-  let sharedContext: BrowserContext;
-  let settingsActions: SettingsActions;
-  let linkedInActions: LinkedInActions;
+export class LoginHelper {
+  /**
+   * Complete login flow - handles automated OAuth and navigation to home page
+   * Returns the authenticated page after successful login
+   */
+  static async performLogin(page: Page, context: BrowserContext, timeout: number = 360000): Promise<Page> {
+    console.log('🔐 Starting automated login flow...');
 
-  // Login ONCE before all tests
-  test.beforeAll(async ({ browser }) => {
-    // Set timeout to 6 minutes for login flow (same as smoke test)
-    test.setTimeout(360000);
+    const loginActions = new LoginActions(page);
+    let activePage: any = page;
 
-    console.log('🔐 Performing login once for all LinkedIn tests...');
-
-    // Create a persistent browser context with storage
-    sharedContext = await browser.newContext({
-      acceptDownloads: true,
-    });
-    sharedPage = await sharedContext.newPage();
-
-    const loginActions = new LoginActions(sharedPage);
-    let activePage: any = sharedPage;
-
-    // Step 1: Clear only Anyteam app storage (keep Google session)
+    // Step 1: Clear only Anyteam app storage (keep Google session if available)
     console.log('Step 1: Clearing Anyteam app session...');
     const baseUrl = new URL(TestData.urls.base);
     const domain = baseUrl.hostname;
     const authDomain = domain.replace('app.', 'auth.');
-    await sharedContext.clearCookies({ domain });
-    await sharedContext.clearCookies({ domain: authDomain });
+    await context.clearCookies({ domain });
+    await context.clearCookies({ domain: authDomain });
 
     // Step 2: Navigate to login page
     console.log('Step 2: Navigating to login page...');
     await loginActions.navigateToLoginPage();
-    await sharedPage.waitForTimeout(2000);
+    await page.waitForTimeout(2000);
 
     // Step 3: Check if Continue with Google button is visible
     console.log('Step 3: Verifying Continue with Google button...');
-    const continueButton = sharedPage.locator('p:has-text("Continue with Google")');
+    const continueButton = page.locator('p:has-text("Continue with Google")');
     const isContinueVisible = await continueButton.isVisible({ timeout: 5000 }).catch(() => false);
 
     if (isContinueVisible) {
       // Step 4: Click Continue with Google
       console.log('Step 4: Clicking Continue with Google...');
       const continueButtonElement = continueButton.locator('..');
-      const navigationPromise = sharedPage.waitForURL('**/*', { timeout: 15000 }).catch(() => null);
-      const popupPromise = sharedContext.waitForEvent('page', { timeout: 5000 }).catch(() => null);
+      const navigationPromise = page.waitForURL('**/*', { timeout: 15000 }).catch(() => null);
+      const popupPromise = context.waitForEvent('page', { timeout: 5000 }).catch(() => null);
 
       await continueButtonElement.click();
       const [popup] = await Promise.all([popupPromise, navigationPromise]);
@@ -74,15 +57,15 @@ test.describe.serial('LinkedIn Page', () => {
 
       // Step 5: Check if we need to continue with OAuth or if already logged in
       console.log('Step 5: Checking if OAuth flow is needed...');
-      await sharedPage.waitForTimeout(1000);
+      await page.waitForTimeout(1000);
 
-      const currentPageUrl = activePage.isClosed() ? sharedPage.url() : activePage.url();
+      const currentPageUrl = activePage.isClosed() ? page.url() : activePage.url();
       const currentUrl = new URL(currentPageUrl);
       const isAlreadyLoggedIn = currentUrl.hostname.includes('anyteam.com');
 
       if (!isAlreadyLoggedIn) {
-        // Handle OAuth login
-        console.log('On Google OAuth page, proceeding with manual login flow...');
+        // Handle automated OAuth login
+        console.log('On Google OAuth page, proceeding with automated OAuth flow...');
         
         if (activePage.isClosed()) {
           throw new Error('OAuth page was closed unexpectedly');
@@ -125,25 +108,25 @@ test.describe.serial('LinkedIn Page', () => {
         await activePage.waitForTimeout(3000);
       } else {
         console.log('✓ Already logged in, skipping OAuth flow');
-        activePage = sharedPage;
+        activePage = page;
       }
     }
 
     // Step 6: Wait for redirect to anyteam.com and find the correct page
     console.log('Step 9: Waiting for redirect to anyteam.com...');
-    let appPage = sharedPage;
+    let appPage = page;
 
     try {
       // Wait for navigation to anyteam.com - check all pages in context
       await Promise.race([
-        sharedPage.waitForURL('**/anyteam.com/**', { timeout: 30000 }),
+        page.waitForURL('**/anyteam.com/**', { timeout: 30000 }),
         activePage.waitForURL('**/anyteam.com/**', { timeout: 30000 }),
       ]).catch(() => {
         console.log('Timeout waiting for anyteam.com URL, checking all pages...');
       });
 
       // Check all pages in the context to find the one that redirected to anyteam.com
-      const allPages = sharedContext.pages();
+      const allPages = context.pages();
       let foundAnyteamPage = false;
       
       for (const testPage of allPages) {
@@ -163,11 +146,11 @@ test.describe.serial('LinkedIn Page', () => {
       // If not found in pages, check the current pages
       if (!foundAnyteamPage) {
         try {
-          const pageUrl = sharedPage.url();
+          const pageUrl = page.url();
           const activePageUrl = activePage.url();
           
           if (pageUrl.includes('anyteam.com') && !pageUrl.includes('accounts.google.com')) {
-            appPage = sharedPage;
+            appPage = page;
             foundAnyteamPage = true;
             console.log('Main page redirected to anyteam.com');
           } else if (activePageUrl.includes('anyteam.com') && !activePageUrl.includes('accounts.google.com')) {
@@ -292,7 +275,7 @@ test.describe.serial('LinkedIn Page', () => {
         }
       }
     }
-
+    
     // Step 8: Final URL check and session recovery
     appPageUrlCheck = appPage.url();
     console.log('Final URL before looking for sidebar:', appPageUrlCheck);
@@ -311,22 +294,19 @@ test.describe.serial('LinkedIn Page', () => {
       console.log('✓ Navigated to:', appPageUrlCheck);
     }
 
-    // Update sharedPage to point to the correct appPage
-    sharedPage = appPage;
-
     // Step 9: Verify we're logged in and on home page
-    await sharedPage.waitForLoadState('domcontentloaded', { timeout: 10000 }).catch(() => {
+    await appPage.waitForLoadState('domcontentloaded', { timeout: 10000 }).catch(() => {
       console.log('Page load state check timeout, but continuing...');
     });
-    await sharedPage.waitForTimeout(3000);
+    await appPage.waitForTimeout(3000);
 
     // Check if home page content is visible
     console.log('Checking if home page content is visible...');
     const homePageIndicators = [
-      sharedPage.locator('text=/Good (Morning|Afternoon|Evening)/i'),
-      sharedPage.locator('[data-sidebar]'),
-      sharedPage.locator('button[data-sidebar="menu-button"]'),
-      sharedPage.locator('text=/Ask AI/i'),
+      appPage.locator('text=/Good (Morning|Afternoon|Evening)/i'),
+      appPage.locator('[data-sidebar]'),
+      appPage.locator('button[data-sidebar="menu-button"]'),
+      appPage.locator('text=/Ask AI/i'),
     ];
     
     let homePageVisible = false;
@@ -345,167 +325,20 @@ test.describe.serial('LinkedIn Page', () => {
 
     if (!homePageVisible) {
       // Try navigating to /home if not already there
-      const currentUrl = sharedPage.url();
-    if (!currentUrl.includes('/home')) {
+      const currentUrl = appPage.url();
+      if (!currentUrl.includes('/home')) {
         console.log('Home page content not visible, navigating to /home...');
-        await sharedPage.goto(`${TestData.urls.base}/home`, { timeout: 15000, waitUntil: 'networkidle' }).catch(() => {});
-      await sharedPage.waitForTimeout(3000);
+        await appPage.goto(`${TestData.urls.base}/home`, { timeout: 15000, waitUntil: 'networkidle' }).catch(() => {});
+        await appPage.waitForTimeout(3000);
       }
     }
 
-    const finalUrl = sharedPage.url();
-    const isOnHomePage = await sharedPage.locator('button[data-sidebar="menu-button"]').first().isVisible({ timeout: 10000 }).catch(() => false);
+    const finalUrl = appPage.url();
+    const isOnHomePage = await appPage.locator('button[data-sidebar="menu-button"]').first().isVisible({ timeout: 10000 }).catch(() => false);
 
-    console.log(`✅ Login complete! On home page: ${isOnHomePage}`);
+    console.log(`✅ Automated login complete! On home page: ${isOnHomePage}`);
     console.log(`Current URL: ${finalUrl}`);
-  });
 
-  test.beforeEach(async () => {
-    // Check if page is still valid
-    if (sharedPage.isClosed()) {
-      throw new Error('Shared page was closed unexpectedly');
-    }
-
-    // Navigate to settings -> LinkedIn before each test
-    settingsActions = new SettingsActions(sharedPage);
-    linkedInActions = new LinkedInActions(sharedPage);
-
-    // Check if we're on the login page (session lost)
-    const currentUrl = sharedPage.url();
-    if (!currentUrl.includes('anyteam.com') || currentUrl.includes('/Login') || currentUrl.includes('/onboarding/Login')) {
-      // If not on anyteam.com or on login page, navigate to home
-      console.log('Not on app page, navigating to home...');
-      await sharedPage.goto(`${TestData.urls.base}/home`, { timeout: 15000, waitUntil: 'networkidle' }).catch(() => {});
-      await sharedPage.waitForTimeout(2000);
-    } else if (!currentUrl.includes('/home') && !currentUrl.includes('/settings')) {
-      // If on anyteam.com but not on home or settings, navigate to home first
-      console.log('Navigating to home page first...');
-      await sharedPage.goto(`${TestData.urls.base}/home`, { timeout: 15000, waitUntil: 'networkidle' }).catch(() => {});
-      await sharedPage.waitForTimeout(2000);
-    }
-
-    // Navigate to settings
-    await settingsActions.navigateToSettingsPage();
-    await sharedPage.waitForTimeout(2000);
-  });
-
-  test.afterAll(async () => {
-    // Clean up after all tests
-    await sharedContext.close();
-  });
-
-  test('should click LinkedIn tab', async () => {
-    await linkedInActions.clickLinkedInTab();
-    
-    // Verify LinkedIn tab is active
-    const isActive = await linkedInActions.verifyLinkedInTabActive();
-    expect(isActive).toBe(true);
-  });
-
-  test('should verify LinkedIn tab is active after clicking', async () => {
-    await linkedInActions.clickLinkedInTab();
-    
-    // Verify tab state is active
-    const isActive = await linkedInActions.verifyLinkedInTabActive();
-    expect(isActive).toBe(true);
-  });
-
-  test('should verify LinkedIn content is displayed', async () => {
-    await linkedInActions.clickLinkedInTab();
-    
-    // Verify content is displayed
-    const isContentDisplayed = await linkedInActions.verifyLinkedInContentDisplayed();
-    console.log('LinkedIn content displayed:', isContentDisplayed);
-  });
-
-  test('should verify Google Workspace Account and LinkedIn Account headings are present', async () => {
-    // Navigate to LinkedIn account page
-    await linkedInActions.clickLinkedInTab();
-    
-    // Wait for LinkedIn tab to be active
-    await linkedInActions.verifyLinkedInTabActive();
-    
-    // Verify both account headings are visible
-    const headingsVisibility = await linkedInActions.verifyAccountHeadingsVisible();
-    
-    // Log visibility status for each heading
-    console.log('Account Headings Visibility Status:');
-    console.log('  - Google Workspace Account:', headingsVisibility.googleWorkspaceAccount ? '✓ Visible' : '✗ Not visible');
-    console.log('  - LinkedIn Account:', headingsVisibility.linkedInAccount ? '✓ Visible' : '✗ Not visible');
-    
-    // Assert that both headings are visible
-    expect(headingsVisibility.googleWorkspaceAccount).toBe(true);
-    expect(headingsVisibility.linkedInAccount).toBe(true);
-    expect(headingsVisibility.bothVisible).toBe(true);
-    
-    console.log('✓ Both account headings are present on LinkedIn account page');
-  });
-
-  test('should edit LinkedIn information and verify value', async () => {
-    await linkedInActions.clickLinkedInTab();
-
-    // Edit LinkedIn information - read from .env file
-    const linkedInUrl = TestData.socialLinks.linkedIn || 'https://www.linkedin.com/in/test-profile';
-    await linkedInActions.editLinkedInInfo(linkedInUrl);
-
-    // Verify the field has the value
-    const linkedInField = sharedPage.locator('input[placeholder*="linkedin"], input[aria-label*="linkedin"], input[name*="linkedin"], input[id*="linkedin"], input[type="url"]').first();
-    const fieldValue = await linkedInField.inputValue();
-    expect(fieldValue).toBe(linkedInUrl);
-
-    console.log('LinkedIn information edited and verified:', linkedInUrl);
-  });
-
-  test('should save LinkedIn information and verify save', async () => {
-    await linkedInActions.clickLinkedInTab();
-
-    // Edit LinkedIn information - read from .env file
-    const linkedInUrl = TestData.socialLinks.linkedIn || 'https://www.linkedin.com/in/test-profile';
-    await linkedInActions.editLinkedInInfo(linkedInUrl);
-
-    // Verify field has value before saving
-    const linkedInField = sharedPage.locator('input[placeholder*="linkedin"], input[aria-label*="linkedin"], input[name*="linkedin"], input[id*="linkedin"], input[type="url"]').first();
-    const fieldValueBefore = await linkedInField.inputValue();
-    expect(fieldValueBefore).toBe(linkedInUrl);
-
-    // Save LinkedIn information
-    await linkedInActions.saveLinkedInInfo();
-
-    // Wait for save to complete
-    await sharedPage.waitForTimeout(2000);
-
-    // Verify LinkedIn tab is still active after save
-    const isActive = await linkedInActions.verifyLinkedInTabActive();
-    expect(isActive).toBe(true);
-
-    console.log('LinkedIn information saved and verified');
-  });
-
-  test('should complete flow: Edit LinkedIn URL -> Save -> Verify', async () => {
-    await linkedInActions.clickLinkedInTab();
-
-    // Edit LinkedIn information - read from .env file
-    const linkedInUrl = TestData.socialLinks.linkedIn || 'https://www.linkedin.com/in/test-profile';
-
-    // Step 1: Edit LinkedIn field
-    const linkedInField = sharedPage.locator('input[placeholder*="linkedin"], input[aria-label*="linkedin"], input[name*="linkedin"], input[id*="linkedin"], input[type="url"]').first();
-    await linkedInField.waitFor({ state: 'visible', timeout: 10000 });
-    await linkedInField.clear();
-    await linkedInField.fill(linkedInUrl);
-
-    // Step 2: Verify value was entered
-    const fieldValue = await linkedInField.inputValue();
-    expect(fieldValue).toBe(linkedInUrl);
-
-    // Step 3: Save LinkedIn information
-    await linkedInActions.saveLinkedInInfo();
-
-    // Step 4: Verify LinkedIn tab is still active
-    const isActive = await linkedInActions.verifyLinkedInTabActive();
-    expect(isActive).toBe(true);
-
-    console.log('Complete flow: Edit LinkedIn -> Save -> Verify completed');
-    console.log('LinkedIn URL updated to:', linkedInUrl);
-  });
-});
-
+    return appPage;
+  }
+}

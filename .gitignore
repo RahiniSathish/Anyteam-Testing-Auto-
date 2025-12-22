@@ -7,6 +7,9 @@ playwright/.cache/
 *.log
 .DS_Store
 
+# Authentication state (should not be committed)
+auth.json
+
 # Exclude Atest folder from git
 Atest/
 
